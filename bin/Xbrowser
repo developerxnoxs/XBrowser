@@ -1,0 +1,31 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+define('XBROWSER_ROOT', dirname(__DIR__));
+define('XBROWSER_VERSION', '1.0.0');
+
+$autoloadPaths = [
+    XBROWSER_ROOT . '/vendor/autoload.php',
+    dirname(XBROWSER_ROOT) . '/vendor/autoload.php',
+];
+
+$loaded = false;
+foreach ($autoloadPaths as $path) {
+    if (file_exists($path)) {
+        require $path;
+        $loaded = true;
+        break;
+    }
+}
+
+if (!$loaded) {
+    fwrite(STDERR, "Error: Composer autoloader not found. Run 'composer install' first.\n");
+    exit(1);
+}
+
+use Xbrowser\Commands\Application;
+
+$app = new Application();
+$app->run($argv);
