@@ -126,6 +126,10 @@ BANNER;
             (new NetworkCommand($self->createBrowser()))->execute($args);
         };
 
+        $this->commands['capture'] = function (array $args) use ($self) {
+            (new CaptureCommand($self->createBrowser()))->execute($args);
+        };
+
         $this->commands['record'] = function (array $args) use ($self) {
             (new RecordCommand($self->createBrowser()))->execute($args);
         };
@@ -163,6 +167,7 @@ BANNER;
             ['html',                     'Dump the full page HTML'],
             ['shell',                    'Start an interactive browser shell'],
             ['network',                  'Show network request/response log'],
+            ['capture <url>',            'Intercept & rekam semua network traffic ke JSON'],
             ['record',                   'Record actions and export as PHP script'],
             ['save-session <name>',      'Save current browser session'],
             ['load-session <name>',      'Load a previously saved session'],

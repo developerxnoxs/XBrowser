@@ -17,6 +17,7 @@ use Xbrowser\Events\PageLoadedEvent;
 use Xbrowser\Exceptions\JavaScriptException;
 use Xbrowser\Exceptions\SelectorNotFoundException;
 use Xbrowser\Exceptions\TimeoutException;
+use Xbrowser\Networking\NetworkCapture;
 use Xbrowser\Networking\NetworkInspector;
 use Xbrowser\Renderer\TerminalRenderer;
 use Xbrowser\Utils\Logger;
@@ -388,6 +389,27 @@ class Page
     {
         $this->network->enable();
         return $this->network;
+    }
+
+    /**
+     * Buat & aktifkan NetworkCapture — intercept penuh request/response/body.
+     *
+     * Setara dengan blok CDP di intercept.js (Puppeteer):
+     *   Network.requestWillBeSent + responseReceived + loadingFinished
+     *
+     * Contoh:
+     *   $capture = $page->startCapture();
+     *   $capture->filterDomain('facebook.com')
+     *           ->scanCredentials(['email@', 'pass=']);
+     *   $page->goto('https://m.facebook.com/login/');
+     *   $capture->fetchPendingBodies();
+     *   $capture->saveJson('result.json');
+     */
+    public function startCapture(): NetworkCapture
+    {
+        $capture = new NetworkCapture($this->cdp);
+        $capture->enable();
+        return $capture;
     }
 
     public function setViewport(int $width, int $height): void
