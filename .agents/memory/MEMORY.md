@@ -1,0 +1,1 @@
+- [Chrome Network.enable params](chrome-network-enable-params.md) — Chrome >=112 menolak `params:[]` untuk Network.enable, harus pakai `params:{}` (stdClass).

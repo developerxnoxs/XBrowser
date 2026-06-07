@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Xbrowser\Networking;
 
 use Xbrowser\CDP\Client;
+use Xbrowser\CDP\Protocol;
 
 class NetworkInspector
 {
@@ -19,6 +20,8 @@ class NetworkInspector
         if ($this->enabled) {
             return;
         }
+
+        $this->cdp->send(Protocol::networkEnable());
 
         $this->cdp->onEvent('Network.requestWillBeSent', function (array $params): void {
             $req = new NetworkRequest(

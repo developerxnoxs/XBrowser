@@ -76,7 +76,9 @@ class NetworkCapture
         }
 
         // Aktifkan domain Network di CDP
-        $this->cdp->send(Protocol::enable('Network'));
+        // Gunakan networkEnable() bukan enable('Network') — Chrome >=112 validasi
+        // params sebagai object {}, bukan array [].
+        $this->cdp->send(Protocol::networkEnable());
 
         // ── requestWillBeSent ────────────────────────────────────────────────
         $this->cdp->onEvent('Network.requestWillBeSent', function (array $p): void {

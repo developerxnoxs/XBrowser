@@ -101,12 +101,12 @@ try {
         })()
     JS);
 
-    log("=== PAGE DATA ===");
-    log("lsd        : " . ($pageData['lsd'] ?? 'null'));
-    log("jazoest    : " . ($pageData['jazoest'] ?? 'null'));
-    log("public_key : " . ($pageData['public_key'] ?? 'null'));
-    log("key_id     : " . ($pageData['key_id'] ?? 'null'));
-    log("Inputs     : " . json_encode($pageData['inputs'] ?? []));
+    logMsg("=== PAGE DATA ===");
+    logMsg("lsd        : " . ($pageData['lsd'] ?? 'null'));
+    logMsg("jazoest    : " . ($pageData['jazoest'] ?? 'null'));
+    logMsg("public_key : " . ($pageData['public_key'] ?? 'null'));
+    logMsg("key_id     : " . ($pageData['key_id'] ?? 'null'));
+    logMsg("Inputs     : " . json_encode($pageData['inputs'] ?? []));
 
     // Screenshot halaman login
     $page->screenshot('login_page.png');
@@ -157,7 +157,7 @@ try {
         })()
     JS);
 
-    log("Metode submit: {$submitMethod}");
+    logMsg("Metode submit: {$submitMethod}");
 
     // Tunggu respons Facebook
     $redirected = false;
@@ -183,10 +183,10 @@ try {
         if ($c['name'] === 'xs')     $xs    = $c['value'];
     }
 
-    log("URL sebelum : {$urlBefore}");
-    log("URL setelah : {$urlAfter}");
-    log("Redirect    : " . ($redirected ? 'YA' : 'TIDAK'));
-    log("c_user      : " . ($cUser ?? 'tidak ada'));
+    logMsg("URL sebelum : {$urlBefore}");
+    logMsg("URL setelah : {$urlAfter}");
+    logMsg("Redirect    : " . ($redirected ? 'YA' : 'TIDAK'));
+    logMsg("c_user      : " . ($cUser ?? 'tidak ada'));
 
     $page->screenshot('after_login.png');
     logMsg('Screenshot: after_login.png');

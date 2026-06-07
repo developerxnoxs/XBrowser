@@ -118,6 +118,23 @@ class Protocol
         return ['method' => 'Page.printToPDF', 'params' => ['printBackground' => true]];
     }
 
+    /**
+     * Network.enable — gunakan stdClass() bukan [] agar Chrome serialisasi
+     * sebagai JSON object {} bukan array []. Chrome >=112 strict validasi params.
+     */
+    public static function networkEnable(
+        int $maxTotalBufferSize    = 0,
+        int $maxResourceBufferSize = 0,
+        int $maxPostDataSize       = 0
+    ): array {
+        $params = new \stdClass();
+        if ($maxTotalBufferSize    > 0) $params->maxTotalBufferSize    = $maxTotalBufferSize;
+        if ($maxResourceBufferSize > 0) $params->maxResourceBufferSize = $maxResourceBufferSize;
+        if ($maxPostDataSize       > 0) $params->maxPostDataSize       = $maxPostDataSize;
+
+        return ['method' => 'Network.enable', 'params' => $params];
+    }
+
     public static function getAllCookies(): array
     {
         return ['method' => 'Network.getAllCookies', 'params' => []];
