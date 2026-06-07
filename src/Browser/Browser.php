@@ -282,7 +282,9 @@ class Browser
             $args[] = '--disable-gpu';
         }
 
-        if ($options['no_sandbox'] ?? $this->config->get('no_sandbox', false)) {
+        // Support env var XBROWSER_NO_SANDBOX=true (digunakan di Docker)
+        $noSandboxEnv = filter_var(getenv('XBROWSER_NO_SANDBOX'), FILTER_VALIDATE_BOOLEAN);
+        if ($options['no_sandbox'] ?? $this->config->get('no_sandbox', $noSandboxEnv)) {
             $args[] = '--no-sandbox';
             $args[] = '--disable-setuid-sandbox';
         }

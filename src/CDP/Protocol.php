@@ -211,6 +211,62 @@ class Protocol
         ];
     }
 
+    // ── Fetch domain (Request Interception) ──────────────────────────────────
+
+    /**
+     * Aktifkan Fetch domain untuk intercept request sebelum dikirim.
+     *
+     * @param array $patterns  Array of ['urlPattern' => '...', 'resourceType' => '...']
+     *                         Kosong = intercept semua.
+     */
+    public static function fetchEnable(array $patterns = []): array
+    {
+        if (empty($patterns)) {
+            $patterns = [['urlPattern' => '*']];
+        }
+        return ['method' => 'Fetch.enable', 'params' => ['patterns' => $patterns]];
+    }
+
+    public static function fetchDisable(): array
+    {
+        return ['method' => 'Fetch.disable', 'params' => new \stdClass()];
+    }
+
+    public static function fetchContinueRequest(string $requestId, array $overrides = []): array
+    {
+        return ['method' => 'Fetch.continueRequest', 'params' => array_merge(
+            ['requestId' => $requestId],
+            $overrides
+        )];
+    }
+
+    public static function fetchFailRequest(string $requestId, string $errorReason = 'BlockedByClient'): array
+    {
+        return [
+            'method' => 'Fetch.failRequest',
+            'params' => ['requestId' => $requestId, 'errorReason' => $errorReason],
+        ];
+    }
+
+    public static function fetchFulfillRequest(
+        string $requestId,
+        int    $responseCode,
+        array  $responseHeaders = [],
+        string $body            = '',
+    ): array {
+        return [
+            'method' => 'Fetch.fulfillRequest',
+            'params' => [
+                'requestId'       => $requestId,
+                'responseCode'    => $responseCode,
+                'responseHeaders' => $responseHeaders,
+                'body'            => base64_encode($body),
+            ],
+        ];
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+
     public static function createTarget(string $url = 'about:blank'): array
     {
         return ['method' => 'Target.createTarget', 'params' => ['url' => $url]];

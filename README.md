@@ -342,6 +342,110 @@ $browser->close();
 
 ---
 
+## Request Interception
+
+Gunakan `$page->intercept()` untuk **menghentikan request sebelum dikirim** ke server — blokir, modifikasi, atau balas dengan response buatan sendiri.
+
+> Berbeda dari `startCapture()` yang hanya mengamati traffic secara pasif, `intercept()` benar-benar menghentikan setiap request dan menunggu keputusan kamu.
+
+```php
+<?php
+
+use Xbrowser\Browser\Browser;
+use Xbrowser\Networking\InterceptedRequest;
+
+$browser = new Browser();
+$page    = $browser->newPage();
+
+// ── 1. Blokir gambar & iklan (halaman lebih cepat) ───────────────────────────
+$interceptor = $page->intercept();
+$interceptor
+    ->blockResourceTypes(['Image', 'Media', 'Font'])
+    ->blockAds();
+
+$page->goto('https://example.com');
+print_r($interceptor->getStats());
+$interceptor->disable();
+
+
+// ── 2. Inject header ke setiap request ───────────────────────────────────────
+$interceptor2 = $page->intercept();
+$interceptor2->onRequest(function (InterceptedRequest $req): void {
+    $req->continue([
+        'headers' => array_merge($req->headers, [
+            'X-Powered-By'  => 'Xbrowser',
+            'Authorization' => 'Bearer my-token',
+        ]),
+    ]);
+});
+
+$page->goto('https://httpbin.org/headers');
+$interceptor2->disable();
+
+
+// ── 3. Mock respons API (tanpa server nyata) ──────────────────────────────────
+$interceptor3 = $page->intercept();
+$interceptor3->onRequest(function (InterceptedRequest $req): void {
+    if (str_contains($req->url, '/api/user')) {
+        $req->respond([
+            'status'   => 200,
+            'mimeType' => 'application/json',
+            'body'     => '{"id":1,"name":"Mock User"}',
+        ]);
+    } else {
+        $req->continue();
+    }
+});
+
+$page->goto('https://example.com');
+$interceptor3->disable();
+
+
+// ── 4. Redirect URL tertentu ──────────────────────────────────────────────────
+$interceptor4 = $page->intercept();
+$interceptor4->onRequest(function (InterceptedRequest $req): void {
+    if (str_contains($req->url, 'cdn.old-provider.com')) {
+        $req->continue([
+            'url' => str_replace('cdn.old-provider.com', 'cdn.new-provider.com', $req->url),
+        ]);
+    } else {
+        $req->continue();
+    }
+});
+
+$page->goto('https://example.com');
+$interceptor4->disable();
+
+$browser->close();
+```
+
+### API Referensi — RequestInterceptor
+
+| Method | Deskripsi |
+|--------|-----------|
+| `onRequest(callable $handler)` | Daftarkan handler untuk setiap request |
+| `blockResourceTypes(string[])` | Blokir berdasarkan tipe (Image, Script, dll.) |
+| `blockUrls(string[])` | Blokir URL yang mengandung substring |
+| `addHeaders(array)` | Inject header ke semua request |
+| `blockAds()` | Blokir tracker & iklan umum |
+| `interceptXhr()` | Intercept hanya XHR dan Fetch |
+| `interceptStatic()` | Intercept resource statis (img, css, font) |
+| `addPattern(string, ?string)` | Tambah pola URL/resourceType kustom |
+| `getStats()` | Statistik: total, blocked, modified, allowed |
+| `disable()` | Matikan interceptor |
+
+### API Referensi — InterceptedRequest
+
+Di dalam handler, **wajib** memanggil salah satu dari tiga aksi:
+
+| Method | Deskripsi |
+|--------|-----------|
+| `$req->continue(array $overrides = [])` | Teruskan (opsional: override url/method/headers/postData) |
+| `$req->abort(string $reason = 'BlockedByClient')` | Batalkan request |
+| `$req->respond(array $response)` | Balas dengan response buatan (status/headers/body/mimeType) |
+
+---
+
 ## Event System
 
 ```php
@@ -620,6 +724,65 @@ Some SPAs need extra time for JavaScript to execute. The browser already waits f
 ```php
 $page->waitForSelector('.my-app-root');
 ```
+
+---
+
+## Docker
+
+Xbrowser tersedia sebagai Docker image — bundled dengan PHP 8.4 + Chromium, tanpa perlu install apapun di host.
+
+### Build image
+
+```bash
+docker build -t xbrowser:latest .
+```
+
+### Jalankan interactive shell
+
+```bash
+docker run -it --rm \
+  --shm-size=256m \
+  --cap-add=SYS_ADMIN \
+  --security-opt seccomp=unconfined \
+  xbrowser:latest shell
+```
+
+### Jalankan script automation
+
+```bash
+docker run --rm \
+  --shm-size=256m \
+  --cap-add=SYS_ADMIN \
+  --security-opt seccomp=unconfined \
+  -v "$(pwd)/examples:/app/examples" \
+  -v "$(pwd)/output:/app/output" \
+  xbrowser:latest php examples/basic_automation.php
+```
+
+### Gunakan docker compose
+
+```bash
+# Interactive shell
+docker compose up xbrowser
+
+# Jalankan script custom
+docker compose run xbrowser-run php examples/request_intercept.php
+
+# Build ulang setelah ada perubahan kode
+docker compose build
+```
+
+### Environment variables di Docker
+
+| Variable | Default | Deskripsi |
+|----------|---------|-----------|
+| `XBROWSER_CHROMIUM` | `/usr/bin/chromium` | Path ke binary Chromium |
+| `XBROWSER_NO_SANDBOX` | `true` | Wajib `true` di container (root/non-dri) |
+| `XBROWSER_HEADLESS` | `true` | Mode headless |
+| `XBROWSER_TIMEOUT` | `30000` | Timeout default (ms) |
+| `XBROWSER_VERBOSE` | `false` | Aktifkan log debug |
+
+> **Catatan `/dev/shm`:** Chromium menggunakan shared memory untuk rendering. Tanpa `--shm-size=256m` atau lebih, Chromium bisa crash saat render halaman berat.
 
 ---
 

@@ -1,0 +1,53 @@
+services:
+
+  # ── Xbrowser interactive shell ───────────────────────────────────────────────
+  xbrowser:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: xbrowser:latest
+    container_name: xbrowser-shell
+    stdin_open: true
+    tty: true
+    command: ["shell"]
+    environment:
+      XBROWSER_CHROMIUM: /usr/bin/chromium
+      XBROWSER_NO_SANDBOX: "true"
+      XBROWSER_HEADLESS: "true"
+      XBROWSER_TIMEOUT: "30000"
+    volumes:
+      # Mount direktori lokal untuk akses script & simpan output
+      - ./examples:/app/examples
+      - ./output:/app/output
+    # Chromium membutuhkan /dev/shm yang cukup besar (default 64MB terlalu kecil)
+    shm_size: 256m
+    # Security: batasi capabilities Chromium
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - seccomp:unconfined
+
+  # ── Jalankan script automation sekali jalan ───────────────────────────────────
+  xbrowser-run:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: xbrowser:latest
+    container_name: xbrowser-runner
+    environment:
+      XBROWSER_CHROMIUM: /usr/bin/chromium
+      XBROWSER_NO_SANDBOX: "true"
+      XBROWSER_HEADLESS: "true"
+    volumes:
+      - ./examples:/app/examples
+      - ./output:/app/output
+    shm_size: 256m
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - seccomp:unconfined
+    profiles:
+      - run
+    # Override command saat pakai: docker compose run xbrowser-run php examples/scraping.php
+    entrypoint: ["php"]
+    command: ["examples/basic_automation.php"]

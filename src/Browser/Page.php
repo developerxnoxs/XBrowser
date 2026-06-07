@@ -19,6 +19,7 @@ use Xbrowser\Exceptions\SelectorNotFoundException;
 use Xbrowser\Exceptions\TimeoutException;
 use Xbrowser\Networking\NetworkCapture;
 use Xbrowser\Networking\NetworkInspector;
+use Xbrowser\Networking\RequestInterceptor;
 use Xbrowser\Renderer\TerminalRenderer;
 use Xbrowser\Utils\Logger;
 use Xbrowser\Utils\SessionManager;
@@ -389,6 +390,52 @@ class Page
     {
         $this->network->enable();
         return $this->network;
+    }
+
+    /**
+     * Buat & aktifkan RequestInterceptor — blokir, modifikasi, atau mock request
+     * sebelum dikirim ke server (menggunakan CDP Fetch domain).
+     *
+     * Berbeda dari startCapture() yang hanya mengamati traffic (pasif),
+     * intercept() menghentikan setiap request dan menunggu keputusan handler.
+     *
+     * Contoh:
+     *   $interceptor = $page->intercept();
+     *
+     *   // Blokir gambar dan iklan
+     *   $interceptor->blockResourceTypes(['Image', 'Media'])->blockAds();
+     *
+     *   // Atau handler manual
+     *   $interceptor->onRequest(function ($req) {
+     *       if (str_contains($req->url, '/ads/')) {
+     *           $req->abort();
+     *       } else {
+     *           $req->continue(['headers' => array_merge($req->headers, ['X-Bot' => '0'])]);
+     *       }
+     *   });
+     *
+     *   $page->goto('https://example.com');
+     *   $interceptor->disable(); // matikan setelah selesai
+     */
+    public function intercept(array $patterns = []): RequestInterceptor
+    {
+        $interceptor = new RequestInterceptor($this->cdp);
+
+        if (!empty($patterns)) {
+            foreach ($patterns as $pattern) {
+                if (is_string($pattern)) {
+                    $interceptor->addPattern($pattern);
+                } elseif (is_array($pattern)) {
+                    $interceptor->addPattern(
+                        $pattern['urlPattern']   ?? '*',
+                        $pattern['resourceType'] ?? null
+                    );
+                }
+            }
+        }
+
+        $interceptor->enable();
+        return $interceptor;
     }
 
     /**

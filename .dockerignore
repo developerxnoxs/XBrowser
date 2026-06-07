@@ -1,0 +1,37 @@
+# Version control
+.git
+.gitignore
+.gitattributes
+
+# Dev dependencies
+vendor/
+node_modules/
+
+# Coverage & test output
+coverage/
+.phpunit.cache/
+*.log
+
+# Output files
+output/
+*.json
+*.png
+*.jpg
+*.pdf
+
+# Editor & OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Docs yang tidak diperlukan di image
+*.md
+docs/
