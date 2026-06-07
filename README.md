@@ -807,6 +807,7 @@ Xbrowser membaca dari `~/.xbrowser/config.json`:
     "chromium_path":         "/usr/bin/chromium",
     "remote_debugging_port": 9222,
     "timeout":               30000,
+    "startup_timeout":       60000,
     "headless":              true,
     "stealth":               true,
     "disable_gpu":           true,
@@ -827,7 +828,8 @@ Xbrowser membaca dari `~/.xbrowser/config.json`:
 |----------|---------|-----------|
 | `XBROWSER_CHROMIUM` | auto-detect | Path ke binary Chromium |
 | `XBROWSER_PORT` | `9222` | Port remote debugging |
-| `XBROWSER_TIMEOUT` | `30000` | Timeout default (ms) |
+| `XBROWSER_TIMEOUT` | `30000` | Timeout navigasi/operasi default (ms) |
+| `XBROWSER_STARTUP_TIMEOUT` | `60000` | Timeout tunggu Chrome siap (ms) — naikkan di perangkat lambat |
 | `XBROWSER_HEADLESS` | `true` | Mode headless |
 | `XBROWSER_STEALTH` | `true` | Aktifkan stealth mode |
 | `XBROWSER_NO_SANDBOX` | `false` | Nonaktifkan sandbox (wajib `true` di Docker/CI) |
@@ -854,6 +856,7 @@ Xbrowser membaca dari `~/.xbrowser/config.json`:
 | `stealth` | bool | `true` | Aktifkan patch anti-deteksi bot |
 | `no_sandbox` | bool | `false` | Wajib `true` di Docker/CI/Replit |
 | `disable_gpu` | bool | `true` | Nonaktifkan GPU (stabil di server) |
+| `startup_timeout` | int | `60000` | Timeout tunggu Chrome siap (ms). Naikkan di perangkat lambat |
 
 ---
 

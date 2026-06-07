@@ -18,10 +18,11 @@ class Browser
     private array $pipes   = [];
     private array $pages   = [];
     private array $clients = [];
-    private ?Page $currentPage = null;
-    private bool  $launched    = false;
-    private int   $port        = 9222;
-    private bool  $stealth     = true;
+    private ?Page $currentPage    = null;
+    private bool  $launched       = false;
+    private int   $port           = 9222;
+    private bool  $stealth        = true;
+    private int   $startupTimeout = 60000;
 
     public function __construct(
         private readonly ConfigManager   $config,
@@ -38,11 +39,12 @@ class Browser
             return;
         }
 
-        $this->port   = (int)  ($options['port']    ?? $this->config->get('remote_debugging_port', 9222));
-        $headless     = (bool) ($options['headless'] ?? $this->config->get('headless', true));
-        $chromium     = $options['chromium'] ?? $this->config->getChromiumPath();
-        $userDataDir  = $options['userDataDir'] ?? $this->config->get('user_data_dir', '');
-        $this->stealth = (bool) ($options['stealth'] ?? $this->config->get('stealth', true));
+        $this->port    = (int)  ($options['port']            ?? $this->config->get('remote_debugging_port', 9222));
+        $headless      = (bool) ($options['headless']         ?? $this->config->get('headless', true));
+        $chromium      = $options['chromium']                 ?? $this->config->getChromiumPath();
+        $userDataDir   = $options['userDataDir']              ?? $this->config->get('user_data_dir', '');
+        $this->stealth         = (bool) ($options['stealth']         ?? $this->config->get('stealth', true));
+        $this->startupTimeout  = (int)  ($options['startup_timeout'] ?? $this->config->get('startup_timeout', 60000));
 
         $this->logger->info("Launching Chromium: {$chromium}");
 
@@ -67,7 +69,7 @@ class Browser
         stream_set_blocking($this->pipes[2], false);
 
         // Wait for Chromium HTTP endpoint to be ready (don't connect WS yet)
-        $this->waitForBrowserReady($this->port);
+        $this->waitForBrowserReady($this->port, $this->startupTimeout);
 
         $this->launched = true;
         $this->logger->success("Browser launched");
@@ -90,7 +92,7 @@ class Browser
         $this->ensureLaunched();
 
         // Ask Chromium to create a new blank tab and return its target info
-        $targetInfo = $this->createNewTarget();
+        $targetInfo = $this->createNewTarget($this->startupTimeout);
         $wsUrl      = $targetInfo['webSocketDebuggerUrl']
             ?? throw new BrowserCrashException("No WebSocket URL for new page target");
 
@@ -235,10 +237,15 @@ class Browser
 
     /**
      * Poll /json/version until Chromium's HTTP debug server is ready.
+     * Default timeout 60 detik agar perangkat lambat tetap bisa berjalan.
      */
-    private function waitForBrowserReady(int $port, int $timeoutMs = 15000): void
+    private function waitForBrowserReady(int $port, int $timeoutMs = 60000): void
     {
         $deadline = microtime(true) + $timeoutMs / 1000;
+
+        $this->logger->debug(
+            "Waiting for Chromium to be ready (timeout: {$timeoutMs}ms) ..."
+        );
 
         while (microtime(true) < $deadline) {
             $url  = "http://localhost:{$port}/json/version";
@@ -253,10 +260,14 @@ class Browser
                 }
             }
 
-            usleep(200_000);
+            usleep(300_000); // 300ms per poll — lebih hemat CPU di perangkat lambat
         }
 
-        throw new TimeoutException("Waiting for Chromium to be ready", $timeoutMs);
+        throw new TimeoutException(
+            "Chromium tidak merespons dalam {$timeoutMs}ms. " .
+            "Coba naikkan startup_timeout: \$browser->launch(['startup_timeout' => 120000])",
+            $timeoutMs
+        );
     }
 
     private function buildArgs(int $port, bool $headless, string $userDataDir, array $options): array

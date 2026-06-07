@@ -12,6 +12,7 @@ class ConfigManager
         'chromium_path'         => '',
         'remote_debugging_port' => 9222,
         'timeout'               => 30000,
+        'startup_timeout'       => 60000,   // timeout tunggu Chrome siap (ms)
         'headless'              => true,
         'stealth'               => true,
         'user_data_dir'         => '',
@@ -170,15 +171,16 @@ class ConfigManager
     private function loadFromEnv(): array
     {
         $map = [
-            'XBROWSER_CHROMIUM'   => 'chromium_path',
-            'XBROWSER_PORT'       => 'remote_debugging_port',
-            'XBROWSER_TIMEOUT'    => 'timeout',
-            'XBROWSER_VERBOSE'    => 'verbose',
-            'XBROWSER_LOG_FILE'   => 'log_file',
-            'XBROWSER_PLUGIN_DIR' => 'plugin_dir',
-            'XBROWSER_STEALTH'    => 'stealth',
-            'XBROWSER_HEADLESS'   => 'headless',
-            'XBROWSER_NO_SANDBOX' => 'no_sandbox',
+            'XBROWSER_CHROMIUM'        => 'chromium_path',
+            'XBROWSER_PORT'            => 'remote_debugging_port',
+            'XBROWSER_TIMEOUT'         => 'timeout',
+            'XBROWSER_STARTUP_TIMEOUT' => 'startup_timeout',
+            'XBROWSER_VERBOSE'         => 'verbose',
+            'XBROWSER_LOG_FILE'        => 'log_file',
+            'XBROWSER_PLUGIN_DIR'      => 'plugin_dir',
+            'XBROWSER_STEALTH'         => 'stealth',
+            'XBROWSER_HEADLESS'        => 'headless',
+            'XBROWSER_NO_SANDBOX'      => 'no_sandbox',
         ];
 
         $result = [];
