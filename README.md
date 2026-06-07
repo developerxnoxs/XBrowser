@@ -107,16 +107,93 @@ docker run -it --rm --shm-size=256m --cap-add=SYS_ADMIN xbrowser:latest shell
 
 ## Instalasi
 
+### Auto-install (semua environment)
+
+Cara paling mudah — satu perintah, deteksi environment otomatis:
+
+```bash
+git clone https://github.com/your-org/xbrowser.git
+cd xbrowser
+bash install.sh
+```
+
+Script akan otomatis:
+1. Deteksi OS (Termux, Ubuntu/Debian, Fedora, Arch, Alpine, macOS)
+2. Install PHP 8.4+ jika belum ada
+3. Install Composer jika belum ada
+4. Install Chromium jika belum ada
+5. Jalankan `composer install`
+6. Daftarkan `Xbrowser` ke PATH global
+7. Simpan config Chromium ke `~/.xbrowser/config.json`
+
+Setelah selesai, `Xbrowser` bisa dipanggil dari mana saja:
+
+```bash
+Xbrowser open https://example.com
+Xbrowser shell
+```
+
+### Opsi install
+
+```bash
+# Install ke PATH user saja (tanpa sudo)
+bash install.sh --user
+
+# Skip install Chromium (jika sudah ada)
+bash install.sh --no-chromium
+
+# Tentukan direktori instalasi kustom
+bash install.sh --dir /home/user/tools/xbrowser
+```
+
+### Install per environment
+
+**Termux (Android):**
+```bash
+pkg install git
+git clone https://github.com/your-org/xbrowser.git
+cd xbrowser
+bash install.sh
+```
+> Di Termux `sudo` tidak ada — installer otomatis pakai `$PREFIX/bin` dan `$PREFIX/opt/xbrowser`.
+
+**Ubuntu / Debian:**
+```bash
+git clone https://github.com/your-org/xbrowser.git && cd xbrowser && bash install.sh
+```
+
+**macOS:**
+```bash
+# Butuh Homebrew: https://brew.sh
+git clone https://github.com/your-org/xbrowser.git && cd xbrowser && bash install.sh
+```
+
+**Alpine Linux / Docker:**
+```bash
+apk add bash git
+git clone https://github.com/your-org/xbrowser.git && cd xbrowser && bash install.sh
+```
+
+**Satu baris (curl, jika repo sudah public):**
+```bash
+curl -fsSL https://raw.githubusercontent.com/your-org/xbrowser/main/install.sh | bash
+```
+
+### Uninstall
+
+```bash
+bash uninstall.sh
+```
+
+Menghapus symlink, direktori instalasi (konfirmasi dulu), dan entri PATH dari shell config.
+
+### Manual (tanpa installer)
+
 ```bash
 git clone https://github.com/your-org/xbrowser.git
 cd xbrowser
 composer install
 chmod +x bin/Xbrowser
-```
-
-Opsional — daftarkan sebagai command global:
-
-```bash
 sudo ln -s "$(pwd)/bin/Xbrowser" /usr/local/bin/Xbrowser
 ```
 
