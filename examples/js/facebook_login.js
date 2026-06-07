@@ -52,8 +52,8 @@ if (args.help) {
   process.exit(0);
 }
 
-const EMAIL      = args.email    || '083807650503';
-const PASS       = args.password || 'Bulusari2580';
+const EMAIL      = args.email    || '0812345678910';
+const PASS       = args.password || 'fakepass25';
 const OTP        = args.otp      || null;
 const OUTPUT     = args.output   || null;
 const VERBOSE    = !!args.verbose;
