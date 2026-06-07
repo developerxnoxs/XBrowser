@@ -44,17 +44,23 @@ if (args.help) {
     '  --password=PASS      Password akun (default: Bulusari2580)',
     '  --otp=CODE           Kode OTP 2FA (jika tidak diisi, akan ditanya interaktif)',
     '  --output=FILE        Simpan hasil ke JSON file',
+    '  --capture-2fa[=FILE] Mode analisa: dump semua data 2FA ke file, TANPA submit OTP',
+    '                       Default file: 2fa_capture.json',
     '  --verbose            Tampilkan detail header, body, dan tokens',
     '  --help               Tampilkan bantuan ini',
   ].join('\n'));
   process.exit(0);
 }
 
-const EMAIL   = args.email    || '083807650503';
-const PASS    = args.password || 'Bulusari2580';
-const OTP     = args.otp      || null;
-const OUTPUT  = args.output   || null;
-const VERBOSE = !!args.verbose;
+const EMAIL      = args.email    || '083807650503';
+const PASS       = args.password || 'Bulusari2580';
+const OTP        = args.otp      || null;
+const OUTPUT     = args.output   || null;
+const VERBOSE    = !!args.verbose;
+// --capture-2fa: mode analisa — dump data 2FA ke file, skip submit OTP
+const CAP2FA     = args['capture-2fa']
+  ? (typeof args['capture-2fa'] === 'string' ? args['capture-2fa'] : '2fa_capture.json')
+  : null;
 
 // ─── Konstanta dari capture ───────────────────────────────────────────────────
 const UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36';
@@ -588,15 +594,15 @@ async function main() {
 
     if (VERBOSE && tfResult) {
       log('\n[VERBOSE] two_factor_result:');
-      log(JSON.stringify(tfResult, null, 2).substring(0, 600));
+      log(JSON.stringify(tfResult, null, 2).substring(0, 800));
     }
 
-    // ── Step 3 & 4: Submit OTP ─────────────────────────────────────────────
+    // ── Ekstrak encrypted_context dari response ────────────────────────────
     const encCtx = extractEncCtx(tfResult, loc, responseText);
 
     if (!encCtx) {
-      warn('Tidak bisa extract encrypted_context — skip 2FA submission');
-      warn('Jalankan dengan --verbose untuk lihat two_factor_result lengkap');
+      warn('Tidak bisa extract encrypted_context dari response');
+      if (!VERBOSE) warn('Coba jalankan dengan --verbose atau --capture-2fa untuk debug');
     } else {
       kv('enc_ctx', encCtx.substring(0, 32) + '...');
 
@@ -605,6 +611,7 @@ async function main() {
       step(3, 4, 'GET two_step_verification/authentication/ (ambil token 2FA)');
 
       let html2fa = '';
+      let r3Status = 0;
       try {
         const r3 = await client.get(twoFaUrl, {
           maxRedirects: 5,
@@ -615,14 +622,15 @@ async function main() {
             'Referer'                  : 'https://www.facebook.com/',
           },
         });
-        html2fa = typeof r3.data === 'string' ? r3.data : JSON.stringify(r3.data);
-        kv('Status', r3.status);
+        html2fa  = typeof r3.data === 'string' ? r3.data : JSON.stringify(r3.data);
+        r3Status = r3.status;
+        kv('Status', r3Status);
         kv('Length', html2fa.length + ' chars');
       } catch (e3) {
         err('GET 2FA page gagal: ' + e3.message);
       }
 
-      // Ekstrak tokens dari halaman 2FA
+      // Ekstrak semua tokens dari halaman 2FA
       const fbDtsg2 = extract(html2fa,
         /"fb_dtsg","([^"]+)"/,
         /"fb_dtsg_ag","([^"]+)"/,
@@ -642,17 +650,89 @@ async function main() {
         /name="uid"[^>]+value="(\d+)"/,
         /"user_id":"?(\d+)"?/,
       );
+      // Cari semua form action dan hidden inputs di halaman 2FA
+      const formAction = extract(html2fa, /<form[^>]+action="([^"]+)"/);
+      const allInputs  = [...html2fa.matchAll(/<input[^>]+name="([^"]+)"[^>]*value="([^"]*)"/g)]
+        .map(m => ({ name: m[1], value: m[2].substring(0, 60) }));
+      // Cari semua mutation names (untuk detect GraphQL endpoint)
+      const mutations  = [...html2fa.matchAll(/"friendly_name"\s*:\s*"([^"]+)"/g)].map(m => m[1]);
+      const docIds2fa  = [...new Set([...html2fa.matchAll(/"doc_id"\s*:\s*"?(\d{15,20})"?/g)].map(m => m[1]))];
+      // Cari semua hidden div / data-store JSON di halaman
+      const dataStores = [...html2fa.matchAll(/data-sjs="([^"]+)"/g)].map(m => {
+        try { return JSON.parse(m[1].replace(/&quot;/g, '"')); } catch { return null; }
+      }).filter(Boolean);
 
-      if (VERBOSE) {
-        kv('fb_dtsg', fbDtsg2 || '(tidak ditemukan)');
-        kv('nh',      nh2     || '(tidak ditemukan)');
-        kv('lsd',     lsd2    || '(tidak ditemukan)');
-        kv('uid',     uid2    || '(tidak ditemukan)');
-      }
+      kv('fb_dtsg', fbDtsg2 || '(tidak ditemukan)');
+      kv('nh',      nh2     || '(tidak ditemukan)');
+      kv('lsd',     lsd2    || '(tidak ditemukan)');
+      kv('uid',     uid2    || '(tidak ditemukan)');
+      kv('form',    formAction || '(tidak ditemukan)');
+      kv('inputs',  allInputs.length + ' hidden inputs ditemukan');
+      kv('mutations', mutations.slice(0, 4).join(', ') || '(tidak ditemukan)');
+      kv('doc_ids', docIds2fa.join(', ') || '(tidak ditemukan)');
 
-      if (!fbDtsg2 && !nh2) {
-        warn('Tidak bisa extract token dari 2FA page — encrypted_context mungkin expired');
-        warn('Pastikan menjalankan script langsung setelah masuk ke checkpoint');
+      // ── MODE CAPTURE-2FA: dump ke file, skip OTP submission ────────────
+      if (CAP2FA) {
+        const cap = {
+          timestamp           : new Date().toISOString(),
+          email               : EMAIL,
+          // Step 2: Login response
+          login_response      : {
+            status          : r2.status,
+            caa_login_web   : parsed?.data?.caa_login_web || null,
+            two_factor_result: tfResult || null,
+            full_response   : responseText,
+          },
+          // encrypted_context
+          encrypted_context   : encCtx,
+          two_fa_url          : twoFaUrl,
+          // Step 3: 2FA page
+          twofa_page          : {
+            status          : r3Status,
+            html_length     : html2fa.length,
+            fb_dtsg         : fbDtsg2,
+            nh               : nh2,
+            lsd              : lsd2,
+            uid              : uid2,
+            form_action     : formAction,
+            hidden_inputs   : allInputs,
+            mutations       : mutations,
+            doc_ids         : docIds2fa,
+            data_stores     : dataStores.slice(0, 5),
+            html_preview    : html2fa.substring(0, 5000),
+            html_full       : html2fa,
+          },
+          cookies_step2       : Object.fromEntries(cookies2.map(c => [c.key, c.value])),
+          cookies_step3       : Object.fromEntries(
+            (await jar.getCookies('https://www.facebook.com')).map(c => [c.key, c.value])
+          ),
+        };
+        fs.writeFileSync(CAP2FA, JSON.stringify(cap, null, 2));
+        log('');
+        ok(`DATA 2FA TERSIMPAN → ${CAP2FA}`);
+        log('');
+        log('─── ISI CAPTURE ──────────────────────────────────────────');
+        kv('two_factor_result', JSON.stringify(tfResult).substring(0, 120));
+        kv('encrypted_context', encCtx.substring(0, 48) + '...');
+        kv('2FA page status',   String(r3Status));
+        kv('form action',       formAction || '(tidak ada)');
+        kv('mutations found',   mutations.join(', ') || '(tidak ada)');
+        kv('doc_ids found',     docIds2fa.join(', ') || '(tidak ada)');
+        kv('hidden inputs',     allInputs.map(i => i.name).join(', ') || '(tidak ada)');
+        log('');
+        warn('MODE CAPTURE — OTP submission DILEWATI (analisa dulu)');
+        warn('Share file ' + CAP2FA + ' untuk analisa struktur 2FA');
+        verdict = 'captured_2fa';
+
+      } else if (!fbDtsg2 && !nh2) {
+        // ── Tidak ada token di halaman 2FA ──────────────────────────────
+        warn('Tidak bisa extract token dari 2FA page (fb_dtsg & nh tidak ditemukan)');
+        warn('encrypted_context mungkin expired — jalankan segera setelah checkpoint');
+        if (docIds2fa.length || mutations.length) {
+          warn('Tapi ada mutation/doc_id — mungkin pakai GraphQL, bukan form POST');
+          warn('Jalankan dengan --capture-2fa untuk analisa lebih lanjut');
+        }
+
       } else {
         // ── STEP 4 — Submit OTP ────────────────────────────────────────────
         step(4, 4, 'POST two_step_verification/authentication/ (submit kode OTP)');
@@ -686,10 +766,10 @@ async function main() {
                 maxRedirects: 5,
                 headers: {
                   ...SEC_FETCH_XHR,
-                  'Content-Type' : 'application/x-www-form-urlencoded',
-                  'Referer'      : twoFaUrl,
-                  'Origin'       : 'https://www.facebook.com',
-                  'X-Requested-With': 'XMLHttpRequest',
+                  'Content-Type'     : 'application/x-www-form-urlencoded',
+                  'Referer'          : twoFaUrl,
+                  'Origin'           : 'https://www.facebook.com',
+                  'X-Requested-With' : 'XMLHttpRequest',
                 },
               }
             );
@@ -697,14 +777,14 @@ async function main() {
             kv('Status', r4.status);
             kv('Length', otpResponseText.length + ' chars');
             if (VERBOSE) {
-              log('[VERBOSE] OTP Response (400 chars):');
-              log(otpResponseText.substring(0, 400));
+              log('[VERBOSE] OTP Response (600 chars):');
+              log(otpResponseText.substring(0, 600));
             }
           } catch (e4) {
             err('POST OTP gagal: ' + e4.message);
           }
 
-          // ── Cek hasil OTP ────────────────────────────────────────────────
+          // ── Cek hasil OTP ─────────────────────────────────────────────
           const cookies3 = await jar.getCookies('https://www.facebook.com');
           const cUser2   = cookies3.find(c => c.key === 'c_user')?.value;
           const xs2      = cookies3.find(c => c.key === 'xs')?.value;
@@ -729,7 +809,7 @@ async function main() {
             warn('2FA berhasil tapi masih ada checkpoint lanjutan');
             verdict = 'checkpoint_next';
           } else {
-            warn('OTP response tidak jelas — periksa manual');
+            warn('OTP response tidak jelas — periksa dengan --verbose');
             if (!VERBOSE) log('  Preview: ' + otpResponseText.substring(0, 200));
             verdict = 'otp_unknown';
           }
@@ -788,7 +868,7 @@ async function main() {
   }
 
   // ─── Ringkasan cookies (hanya untuk non-2FA flow, 2FA sudah tampilkan sendiri) ─
-  const is2faFlow = ['success_2fa', 'wrong_otp', 'checkpoint_next', 'otp_unknown'].includes(verdict);
+  const is2faFlow = ['success_2fa', 'wrong_otp', 'checkpoint_next', 'otp_unknown', 'captured_2fa'].includes(verdict);
   if (!is2faFlow) {
     log('\nCookies yang diterima:');
     if (cookies2.length === 0) {
