@@ -109,12 +109,12 @@ install_php() {
     info "Menginstall PHP 8.4..."
     case "$ENV" in
         termux)
-            pkg update -y && pkg install -y php
+            pkg install -y php
             ;;
         debian)
             # Coba install lewat ondrej/php PPA untuk PHP 8.4
             run apt-get update -qq
-            if ! run apt-get install -y php8.4-cli php8.4-mbstring php8.4-curl 2>/dev/null; then
+            if ! run apt-get install -y php-cli php-mbstring php-curl 2>/dev/null; then
                 warn "PHP 8.4 tidak tersedia langsung. Mencoba via PPA ondrej/php..."
                 run apt-get install -y software-properties-common lsb-release ca-certificates apt-transport-https
                 run add-apt-repository -y ppa:ondrej/php 2>/dev/null || true
