@@ -8,6 +8,7 @@ declare(strict_types=1);
  * Usage:
  *   php examples/facebook_login.php --email=you@example.com --password=secret
  *   php examples/facebook_login.php --no-headless
+ *   php examples/facebook_login.php --capture --output=fb_capture.json
  */
 
 require dirname(__DIR__) . '/vendor/autoload.php';
@@ -17,16 +18,19 @@ use Xbrowser\Exceptions\SelectorNotFoundException;
 use Xbrowser\Exceptions\TimeoutException;
 
 // ── CLI args ──────────────────────────────────────────────────────────────────
-$opts     = getopt('', ['email:', 'password:', 'screenshot:', 'no-headless']);
-$email    = $opts['email']      ?? '083807650503';
-$password = $opts['password']   ?? 'Bulusari2580';
-$shotFile = $opts['screenshot'] ?? 'facebook_after_login.png';
-$headless = !isset($opts['no-headless']);
+$opts       = getopt('', ['email:', 'password:', 'screenshot:', 'output:', 'no-headless', 'capture']);
+$email      = $opts['email']      ?? '083807650503';
+$password   = $opts['password']   ?? 'Bulusari2580';
+$shotFile   = $opts['screenshot'] ?? 'facebook_after_login.png';
+$headless   = !isset($opts['no-headless']);
+$doCapture  = isset($opts['capture']);
+$captureOut = $opts['output']     ?? 'fb_capture.json';
 
 echo "\n\033[1mXbrowser — Facebook Login Test\033[0m\n";
 echo str_repeat('─', 52) . "\n";
 echo "Email   : {$email}\n";
-echo "Headless: " . ($headless ? 'yes' : 'no') . "\n\n";
+echo "Headless: " . ($headless ? 'yes' : 'no') . "\n";
+echo "Capture : " . ($doCapture  ? "\033[32mon → {$captureOut}\033[0m" : 'off (--capture to enable)') . "\n\n";
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 $browser = BrowserFactory::create(['verbose' => false]);
@@ -39,6 +43,15 @@ try {
     ]);
 
     $page = $browser->newPage();
+
+    // ── 0. Network capture (opsional) ─────────────────────────────────────────
+    $capture = null;
+    if ($doCapture) {
+        $capture = $page->startCapture();
+        $capture->filterDomain('facebook.com')
+                ->scanCredentials([$email, $password, 'pass=', 'encpass=', 'lsd=']);
+        echo "→ [0/6] Network capture aktif — filter: facebook.com\n\n";
+    }
 
     // ── 1. Navigate ───────────────────────────────────────────────────────────
     echo "→ [1/6] Navigate to facebook.com ...\n";
@@ -174,6 +187,11 @@ try {
         }
     }
 
+    // Ambil response body yang tertunda sebelum browser pindah halaman
+    if ($capture !== null) {
+        $capture->fetchPendingBodies();
+    }
+
     $title = (string) $page->evaluate('document.title');
 
     // Broad Facebook error detection
@@ -238,6 +256,32 @@ try {
     $page->screenshot($shotFile);
     $size = round(filesize($shotFile) / 1024, 1);
     echo "\nScreenshot (after submit): {$shotFile} ({$size} KB)\n";
+
+    // ── Capture summary ───────────────────────────────────────────────────────
+    if ($capture !== null) {
+        $s = $capture->summary();
+        echo "\n" . str_repeat('─', 52) . "\n";
+        echo "\033[1m=== NETWORK CAPTURE ===\033[0m\n";
+        printf("  Total request   : %d\n",   $s['total']);
+        printf("  POST            : %d\n",   $s['posts']);
+        printf("  Dengan password : \033[%sm%d\033[0m\n",
+            $s['withCredentials'] > 0 ? '33' : '32',
+            $s['withCredentials']
+        );
+        printf("  Response body   : %d\n",   $s['bodyFetched']);
+
+        // Tunjukkan POST yang berisi credential jika ada
+        $creds = $capture->getWithCredentials();
+        if (!empty($creds)) {
+            echo "\n  \033[33m⚠ POST mengandung password/email:\033[0m\n";
+            foreach ($creds as $e) {
+                echo "    " . $e->method . ' ' . $e->url . "\n";
+            }
+        }
+
+        $capture->saveJson($captureOut);
+        echo "\n\033[32m✓ Capture disimpan ke: {$captureOut}\033[0m\n";
+    }
 
 } catch (\Throwable $e) {
     echo "\033[31m✗ " . get_class($e) . ": " . $e->getMessage() . "\033[0m\n";
