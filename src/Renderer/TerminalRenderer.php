@@ -191,34 +191,87 @@ class TerminalRenderer
 
     private function renderTable(array $node): string
     {
-        $rows    = $this->collectTableRows($node);
+        $rows = $this->collectTableRows($node);
         if (empty($rows)) return '';
+
+        $numCols = max(array_map('count', $rows));
+
+        // ── Deteksi layout table ───────────────────────────────────────────────
+        // Tabel dengan 1 kolom dan 1 baris kemungkinan besar adalah layout table,
+        // bukan tabel data. Render isinya sebagai blok biasa tanpa border.
+        if ($numCols <= 1 && count($rows) <= 1) {
+            $text = trim(strip_tags($rows[0][0] ?? ''));
+            return $text !== '' ? PHP_EOL . $this->wordWrap($text) . PHP_EOL : '';
+        }
+
+        // ── Hitung lebar kolom dengan batas maksimum ──────────────────────────
+        // Bagi lebar terminal secara proporsional, maksimal 40 karakter per kolom.
+        $maxColWidth = (int) min(40, max(10, floor(($this->termWidth - ($numCols * 3) - 1) / $numCols)));
 
         $colWidths = [];
         foreach ($rows as $row) {
             foreach ($row as $ci => $cell) {
                 $len = mb_strlen(strip_tags($cell));
-                $colWidths[$ci] = max($colWidths[$ci] ?? 0, $len, 3);
+                $colWidths[$ci] = min($maxColWidth, max($colWidths[$ci] ?? 3, $len, 3));
             }
         }
 
-        $sep = '┼' . implode('┼', array_map(fn($w) => str_repeat('─', $w + 2), $colWidths)) . '┼';
-        $out = PHP_EOL . '┌' . implode('┬', array_map(fn($w) => str_repeat('─', $w + 2), $colWidths)) . '┐' . PHP_EOL;
+        // Pastikan semua kolom punya lebar
+        for ($ci = 0; $ci < $numCols; $ci++) {
+            $colWidths[$ci] = $colWidths[$ci] ?? $maxColWidth;
+        }
+
+        // Jika total lebar tabel melebihi terminal, render sebagai teks biasa
+        $totalWidth = array_sum($colWidths) + ($numCols * 3) + 1;
+        if ($totalWidth > $this->termWidth * 1.5) {
+            // Flatten semua sel ke teks
+            $lines = [];
+            foreach ($rows as $row) {
+                $rowText = implode('  │  ', array_map(fn($c) => trim(strip_tags($c)), $row));
+                $lines[] = $this->wordWrap($rowText);
+            }
+            return PHP_EOL . implode(PHP_EOL . str_repeat('─', min($this->termWidth, 80)) . PHP_EOL, $lines) . PHP_EOL;
+        }
+
+        // ── Bangun tabel ASCII dengan multi-line cell support ─────────────────
+        $border = fn(string $l, string $m, string $r) =>
+            $l . implode($m, array_map(fn($w) => str_repeat('─', $w + 2), $colWidths)) . $r;
+
+        $out = PHP_EOL . $border('┌', '┬', '┐') . PHP_EOL;
 
         foreach ($rows as $ri => $row) {
-            $line = '│';
+            // Word-wrap setiap sel menjadi array baris
+            $wrappedCells = [];
+            $maxLines = 1;
             foreach ($colWidths as $ci => $w) {
-                $cell = strip_tags($row[$ci] ?? '');
-                $pad  = str_pad($cell, $w);
-                $line .= " {$pad} │";
+                $text    = trim(strip_tags($row[$ci] ?? ''));
+                $wrapped = $text !== '' ? explode("\n", wordwrap($text, $w, "\n", true)) : [''];
+                $wrappedCells[$ci] = $wrapped;
+                $maxLines = max($maxLines, count($wrapped));
             }
-            $out .= $line . PHP_EOL;
+
+            // Render baris per baris sel yang di-wrap
+            for ($li = 0; $li < $maxLines; $li++) {
+                $line = '│';
+                foreach ($colWidths as $ci => $w) {
+                    $cellLine = $wrappedCells[$ci][$li] ?? '';
+                    // ANSI-safe padding (tidak menghitung escape codes)
+                    $visible  = mb_strlen(preg_replace('/\033\[[0-9;]*m/', '', $cellLine) ?? $cellLine);
+                    $pad      = str_repeat(' ', max(0, $w - $visible));
+                    $line    .= " {$cellLine}{$pad} │";
+                }
+                $out .= $line . PHP_EOL;
+            }
+
+            // Separator setelah header row (baris pertama)
             if ($ri === 0 && count($rows) > 1) {
-                $out .= '├' . implode('┼', array_map(fn($w) => str_repeat('─', $w + 2), $colWidths)) . '┤' . PHP_EOL;
+                $out .= $border('├', '┼', '┤') . PHP_EOL;
+            } elseif ($ri < count($rows) - 1) {
+                $out .= $border('├', '┼', '┤') . PHP_EOL;
             }
         }
 
-        $out .= '└' . implode('┴', array_map(fn($w) => str_repeat('─', $w + 2), $colWidths)) . '┘' . PHP_EOL;
+        $out .= $border('└', '┴', '┘') . PHP_EOL;
         return $out;
     }
 
