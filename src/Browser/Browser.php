@@ -182,30 +182,65 @@ class Browser
     /**
      * Create a new page target via PUT /json/new.
      * Falls back to re-using the first existing "page" target if /json/new fails.
+     *
+     * Uses a raw TCP socket instead of file_get_contents because Chrome 138+
+     * does not close the HTTP keep-alive connection after the response, which
+     * causes file_get_contents to block until the timeout expires.
+     * The raw socket reads until the JSON payload is complete, then closes.
      */
     private function createNewTarget(int $timeoutMs = 5000): array
     {
-        // Chromium 112+ requires PUT for /json/new
-        $url = "http://localhost:{$this->port}/json/new";
-        $ctx = stream_context_create([
-            'http' => [
-                'method'  => 'PUT',
-                'timeout' => $timeoutMs / 1000,
-                'header'  => 'Content-Length: 0',
-                'content' => '',
-            ],
-        ]);
-        $body = @file_get_contents($url, false, $ctx);
+        $data = $this->putJsonNew('localhost', $this->port, min($timeoutMs, 8000));
 
-        if ($body !== false) {
-            $data = json_decode($body, true);
-            if (is_array($data) && !empty($data['webSocketDebuggerUrl'])) {
-                return $data;
-            }
+        if (is_array($data) && !empty($data['webSocketDebuggerUrl'])) {
+            return $data;
         }
 
         // Fallback: find an existing "page" type target from /json/list
         return $this->findOrWaitForPageTarget($timeoutMs);
+    }
+
+    /**
+     * Issue PUT /json/new via a raw TCP socket.
+     *
+     * Chrome 138+ keeps the HTTP connection alive after sending the JSON
+     * response, so file_get_contents() blocks until its timeout.  Reading
+     * the raw socket and stopping as soon as we see "webSocketDebuggerUrl"
+     * avoids that indefinite wait.
+     */
+    private function putJsonNew(string $host, int $port, int $timeoutMs = 8000): ?array
+    {
+        $deadline = microtime(true) + $timeoutMs / 1000;
+
+        $sock = @fsockopen($host, $port, $errno, $errstr, min(3, $timeoutMs / 1000));
+        if ($sock === false) {
+            return null;
+        }
+
+        stream_set_timeout($sock, 0, 300_000);
+
+        $request = "PUT /json/new HTTP/1.1\r\nHost: {$host}:{$port}\r\nContent-Length: 0\r\n\r\n";
+        fwrite($sock, $request);
+
+        $response = '';
+        while (!feof($sock) && microtime(true) < $deadline) {
+            $chunk = @fread($sock, 4096);
+            if ($chunk === false || $chunk === '') {
+                usleep(5_000);
+                continue;
+            }
+            $response .= $chunk;
+            if (str_contains($response, 'webSocketDebuggerUrl')) {
+                break;
+            }
+        }
+
+        @fclose($sock);
+
+        $pos  = strpos($response, "\r\n\r\n");
+        $body = $pos !== false ? substr($response, $pos + 4) : $response;
+
+        return json_decode($body, true) ?: null;
     }
 
     /**
