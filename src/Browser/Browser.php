@@ -23,6 +23,7 @@ class Browser
     private int   $port           = 9222;
     private bool  $stealth        = true;
     private int   $startupTimeout = 60000;
+    private string $debugHost     = '127.0.0.1'; // resolved saat waitForBrowserReady
 
     public function __construct(
         private readonly ConfigManager   $config,
@@ -190,7 +191,7 @@ class Browser
      */
     private function createNewTarget(int $timeoutMs = 5000): array
     {
-        $data = $this->putJsonNew('localhost', $this->port, min($timeoutMs, 8000));
+        $data = $this->putJsonNew($this->debugHost, $this->port, min($timeoutMs, 8000));
 
         if (is_array($data) && !empty($data['webSocketDebuggerUrl'])) {
             return $data;
@@ -212,13 +213,16 @@ class Browser
     {
         $deadline = microtime(true) + $timeoutMs / 1000;
 
-        $sock = @fsockopen($host, $port, $errno, $errstr, min(3, $timeoutMs / 1000));
+        // fsockopen tidak menerima bracket IPv6 — strip jika ada
+        $connectHost = ($host[0] === '[') ? substr($host, 1, -1) : $host;
+        $sock = @fsockopen($connectHost, $port, $errno, $errstr, min(3, $timeoutMs / 1000));
         if ($sock === false) {
             return null;
         }
 
         stream_set_timeout($sock, 0, 300_000);
 
+        // HTTP Host header untuk IPv6 harus menyertakan bracket: [::1]:port
         $request = "PUT /json/new HTTP/1.1\r\nHost: {$host}:{$port}\r\nContent-Length: 0\r\n\r\n";
         fwrite($sock, $request);
 
@@ -252,7 +256,7 @@ class Browser
         $ctx      = stream_context_create(['http' => ['timeout' => 2]]);
 
         while (microtime(true) < $deadline) {
-            $url  = "http://localhost:{$this->port}/json";
+            $url  = "http://{$this->debugHost}:{$this->port}/json";
             $body = @file_get_contents($url, false, $ctx);
 
             if ($body !== false) {
@@ -342,6 +346,8 @@ class Browser
                 if ($body !== false) {
                     $data = json_decode($body, true);
                     if (is_array($data) && isset($data['Browser'])) {
+                        // Simpan host yang bekerja — dipakai oleh createNewTarget, dll.
+                        $this->debugHost = $host;
                         $this->logger->debug("Chromium ready ({$host}): " . ($data['Browser'] ?? ''));
                         return;
                     }
