@@ -14,6 +14,7 @@ class Application
     private Logger $logger;
     private ConfigManager $config;
     private bool $verbose = false;
+    private int $startupTimeout = 0;
 
     private const VERSION = '1.0.0';
     private const BANNER  = <<<BANNER
@@ -87,7 +88,14 @@ BANNER;
             if ($arg === '--verbose' || $arg === '-V') {
                 $this->verbose = true;
             }
+
+            // --timeout=<ms> atau --startup-timeout=<ms>
+            if (preg_match('/^--(?:timeout|startup-timeout)=(\d+)$/', $arg, $m)) {
+                $this->startupTimeout = (int) $m[1];
+                unset($argv[$i]);
+            }
         }
+        $argv = array_values($argv);
     }
 
     private function registerDefaultCommands(): void
@@ -145,7 +153,11 @@ BANNER;
 
     private function createBrowser(): \Xbrowser\Browser\Browser
     {
-        return BrowserFactory::create(['verbose' => $this->verbose]);
+        $opts = ['verbose' => $this->verbose];
+        if ($this->startupTimeout > 0) {
+            $opts['startup_timeout'] = $this->startupTimeout;
+        }
+        return BrowserFactory::create($opts);
     }
 
     private function showHelp(): void
@@ -178,9 +190,15 @@ BANNER;
         }
 
         echo "\n\033[1mOPTIONS:\033[0m\n";
-        echo "  \033[32m--verbose, -V\033[0m    Show debug output\n";
-        echo "  \033[32m--version, -v\033[0m    Show version\n";
-        echo "  \033[32m--help, -h\033[0m       Show this help\n";
+        echo "  \033[32m--verbose, -V\033[0m              Show debug output\n";
+        echo "  \033[32m--version, -v\033[0m              Show version\n";
+        echo "  \033[32m--help, -h\033[0m                 Show this help\n";
+        echo "  \033[32m--timeout=<ms>\033[0m             Browser startup timeout in ms (default: 60000, Termux: 120000)\n";
+        echo "  \033[32m--startup-timeout=<ms>\033[0m     Alias for --timeout\n";
+        echo "\n\033[1mENV VARS:\033[0m\n";
+        echo "  \033[32mXBROWSER_STARTUP_TIMEOUT=<ms>\033[0m   Startup timeout (same as --timeout)\n";
+        echo "  \033[32mXBROWSER_NO_SANDBOX=true\033[0m        Force --no-sandbox (auto on Termux)\n";
+        echo "  \033[32mXBROWSER_CHROMIUM=/path\033[0m         Custom Chromium binary path\n";
         echo PHP_EOL;
     }
 }

@@ -45,7 +45,12 @@ class Browser
         $chromium      = $options['chromium']                 ?? $this->config->getChromiumPath();
         $userDataDir   = $options['userDataDir']              ?? $this->config->get('user_data_dir', '');
         $this->stealth         = (bool) ($options['stealth']         ?? $this->config->get('stealth', true));
-        $this->startupTimeout  = (int)  ($options['startup_timeout'] ?? $this->config->get('startup_timeout', 60000));
+
+        // Di Termux/Android perangkat jauh lebih lambat; naikkan default timeout
+        // ke 120 detik agar Chromium punya cukup waktu untuk start.
+        // User tetap bisa override dengan opsi 'startup_timeout' atau env var.
+        $termuxDefaultTimeout  = $this->isTermux() ? 120000 : 60000;
+        $this->startupTimeout  = (int)  ($options['startup_timeout'] ?? $this->config->get('startup_timeout', $termuxDefaultTimeout));
 
         $this->logger->info("Launching Chromium: {$chromium}");
 
@@ -359,7 +364,11 @@ class Browser
 
         $hint = $stderrBuf !== ''
             ? "\nOutput Chromium:\n" . substr($stderrBuf, -1000)
-            : " Coba naikkan startup_timeout: \$browser->launch(['startup_timeout' => 120000])";
+            : "\nCara menaikkan timeout:"
+                . "\n  CLI:     Xbrowser --timeout=120000 open <url>"
+                . "\n  Env:     XBROWSER_STARTUP_TIMEOUT=120000 Xbrowser open <url>"
+                . "\n  PHP:     \$browser->launch(['startup_timeout' => 120000])"
+                . "\n  Config:  ~/.xbrowser/config.json → { \"startup_timeout\": 120000 }";
 
         throw new TimeoutException(
             "Chromium tidak merespons dalam {$timeoutMs}ms.{$hint}",
@@ -399,11 +408,22 @@ class Browser
 
         // ── Termux / Android ──────────────────────────────────────────────────
         // /dev/shm tidak tersedia di Android → Chromium crash saat startup.
+        // --no-sandbox WAJIB di Termux: Android tidak punya user namespace
+        //   isolation yang dibutuhkan sandbox Chromium, tanpa flag ini
+        //   Chromium hang / langsung crash tanpa pesan error yang jelas.
         // --no-zygote diperlukan karena proses zygote sering gagal di Termux.
+        // --single-process fallback untuk perangkat dengan RAM terbatas.
         // --log-level=3 menekan ratusan error dbus/inotify yang normal di Android
         //   (dbus tidak ada di Android, error-nya harmless tapi memenuhi log).
         // Flag ini aman di platform lain (diabaikan atau tidak berpengaruh).
         if ($this->isTermux()) {
+            // Wajib: tanpa ini Chromium tidak bisa start di Android
+            if (!in_array('--no-sandbox', $args, true)) {
+                $args[] = '--no-sandbox';
+            }
+            if (!in_array('--disable-setuid-sandbox', $args, true)) {
+                $args[] = '--disable-setuid-sandbox';
+            }
             if (!in_array('--disable-dev-shm-usage', $args, true)) {
                 $args[] = '--disable-dev-shm-usage';
             }
@@ -414,7 +434,7 @@ class Browser
             if (!in_array('--log-level=3', $args, true)) {
                 $args[] = '--log-level=3';
             }
-            $this->logger->debug("Termux detected: added --disable-dev-shm-usage --no-zygote --log-level=3");
+            $this->logger->debug("Termux detected: added --no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage --no-zygote --log-level=3");
         }
 
         // Allow explicit override via option or config (non-Termux juga bisa pakai ini)
