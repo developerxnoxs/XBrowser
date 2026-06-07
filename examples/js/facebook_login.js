@@ -5,6 +5,8 @@
  * Flow identik dengan capture fb_capture_*.json:
  *   Step 1 → GET  https://www.facebook.com/           (ambil cookies + tokens + public key)
  *   Step 2 → POST https://www.facebook.com/api/graphql/  (useCDSWebLoginMutation, doc_id dari capture)
+ *   Step 3 → GET  two_step_verification/authentication/ (2FA page, jika akun aktifkan 2FA)
+ *   Step 4 → POST two_step_verification/authentication/ (submit OTP kode)
  *
  * Enkripsi password: NaCl sealed-box + AES-GCM, format #PWD_BROWSER:5:ts:b64
  * (identik dengan encpass_1780792982736.js yang disertakan)
@@ -12,6 +14,7 @@
  * Usage:
  *   node facebook_login.js
  *   node facebook_login.js --email=X --password=Y
+ *   node facebook_login.js --email=X --password=Y --otp=123456
  *   node facebook_login.js --email=X --password=Y --output=result.json
  *   node facebook_login.js --help
  */
@@ -23,6 +26,7 @@ const nacl                  = require('tweetnacl-sealedbox-js');
 const { webcrypto }         = require('crypto');
 const fs                    = require('fs');
 const crypto                = require('crypto');
+const readline              = require('readline');
 
 // ─── CLI args ─────────────────────────────────────────────────────────────────
 const args = Object.fromEntries(
@@ -38,6 +42,7 @@ if (args.help) {
     'Options:',
     '  --email=EMAIL        Email atau nomor telepon (default: 083807650503)',
     '  --password=PASS      Password akun (default: Bulusari2580)',
+    '  --otp=CODE           Kode OTP 2FA (jika tidak diisi, akan ditanya interaktif)',
     '  --output=FILE        Simpan hasil ke JSON file',
     '  --verbose            Tampilkan detail header, body, dan tokens',
     '  --help               Tampilkan bantuan ini',
@@ -47,6 +52,7 @@ if (args.help) {
 
 const EMAIL   = args.email    || '083807650503';
 const PASS    = args.password || 'Bulusari2580';
+const OTP     = args.otp      || null;
 const OUTPUT  = args.output   || null;
 const VERBOSE = !!args.verbose;
 
@@ -199,6 +205,48 @@ function stripFbPrefix(text) {
   return text.replace(/^for\s*\(;;\);/, '').trim();
 }
 
+// ─── Helper: readline prompt untuk input OTP interaktif ───────────────────────
+function promptOtp(question) {
+  return new Promise(resolve => {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    rl.question(question, answer => {
+      rl.close();
+      resolve(answer.trim());
+    });
+  });
+}
+
+// ─── Helper: extract encrypted_context dari berbagai lokasi di response ───────
+// Facebook menyimpan ini di: two_factor_result.encrypted_context,
+// atau sebagai query param di redirect_uri / two_step_verification URL
+function extractEncCtx(tfResult, redirectUri, responseText) {
+  // 1. Langsung dari two_factor_result object
+  if (tfResult?.encrypted_context) return tfResult.encrypted_context;
+
+  // 2. Dari redirect_uri / URL dalam two_factor_result
+  const tryUrl = str => {
+    if (!str) return null;
+    try {
+      const u = new URL(str.includes('://') ? str : 'https://www.facebook.com' + str);
+      return u.searchParams.get('encrypted_context') || null;
+    } catch { return null; }
+  };
+  const fromTfRedirect = tryUrl(tfResult?.redirect_uri || tfResult?.redirect_url);
+  if (fromTfRedirect) return fromTfRedirect;
+  const fromRedirectUri = tryUrl(redirectUri);
+  if (fromRedirectUri) return fromRedirectUri;
+
+  // 3. Regex langsung dari response text (escaped atau tidak)
+  const m = responseText.match(/two_step_verification[^"]*encrypted_context=([A-Za-z0-9_\-+/=]{20,})/);
+  if (m) return decodeURIComponent(m[1]);
+
+  // 4. Cari di responseText dengan pola "encrypted_context":"..."
+  const m2 = responseText.match(/"encrypted_context"\s*:\s*"([^"]{20,})"/);
+  if (m2) return m2[1];
+
+  return null;
+}
+
 // ─── Logging ──────────────────────────────────────────────────────────────────
 const col = {
   reset : '\x1b[0m', green : '\x1b[32m', yellow : '\x1b[33m',
@@ -234,7 +282,7 @@ async function main() {
   // STEP 1 — GET https://www.facebook.com/
   // Tujuan: dapat cookies datr+sb, extract token dinamis, dan public key enkripsi
   // ══════════════════════════════════════════════════════════════════════════
-  step(1, 2, 'GET https://www.facebook.com/ (ambil cookies + tokens + public key)');
+  step(1, 4, 'GET https://www.facebook.com/ (ambil cookies + tokens + public key)');
 
   let html;
   try {
@@ -359,7 +407,7 @@ async function main() {
   // STEP 2 — POST /api/graphql/ dengan useCDSWebLoginMutation
   // Semua params, urutan, dan struktur identik dengan capture CDP
   // ══════════════════════════════════════════════════════════════════════════
-  step(2, 2, 'POST /api/graphql/ (useCDSWebLoginMutation, doc_id=' + DOC_ID + ')');
+  step(2, 4, 'POST /api/graphql/ (useCDSWebLoginMutation, doc_id=' + DOC_ID + ')');
 
   const now    = Date.now();
   const nowSec = Math.floor(now / 1000);
@@ -538,6 +586,164 @@ async function main() {
     kv('Artinya',  'Password BENAR, akun aktifkan 2FA');
     verdict = 'checkpoint';
 
+    if (VERBOSE && tfResult) {
+      log('\n[VERBOSE] two_factor_result:');
+      log(JSON.stringify(tfResult, null, 2).substring(0, 600));
+    }
+
+    // ── Step 3 & 4: Submit OTP ─────────────────────────────────────────────
+    const encCtx = extractEncCtx(tfResult, loc, responseText);
+
+    if (!encCtx) {
+      warn('Tidak bisa extract encrypted_context — skip 2FA submission');
+      warn('Jalankan dengan --verbose untuk lihat two_factor_result lengkap');
+    } else {
+      kv('enc_ctx', encCtx.substring(0, 32) + '...');
+
+      // ── STEP 3 — GET halaman 2FA ─────────────────────────────────────────
+      const twoFaUrl = `https://www.facebook.com/two_step_verification/authentication/?encrypted_context=${encodeURIComponent(encCtx)}&flow=pre_authentication&next`;
+      step(3, 4, 'GET two_step_verification/authentication/ (ambil token 2FA)');
+
+      let html2fa = '';
+      try {
+        const r3 = await client.get(twoFaUrl, {
+          maxRedirects: 5,
+          headers: {
+            ...SEC_FETCH_NAV,
+            'Accept'                   : 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Upgrade-Insecure-Requests': '1',
+            'Referer'                  : 'https://www.facebook.com/',
+          },
+        });
+        html2fa = typeof r3.data === 'string' ? r3.data : JSON.stringify(r3.data);
+        kv('Status', r3.status);
+        kv('Length', html2fa.length + ' chars');
+      } catch (e3) {
+        err('GET 2FA page gagal: ' + e3.message);
+      }
+
+      // Ekstrak tokens dari halaman 2FA
+      const fbDtsg2 = extract(html2fa,
+        /"fb_dtsg","([^"]+)"/,
+        /"fb_dtsg_ag","([^"]+)"/,
+        /name="fb_dtsg"[^>]+value="([^"]+)"/,
+        /"DTSGInitData"[^}]*"token":"([^"]+)"/,
+      );
+      const nh2   = extract(html2fa,
+        /"nh":"([^"]+)"/,
+        /name="nh"[^>]+value="([^"]+)"/,
+      );
+      const lsd2  = extract(html2fa,
+        /\["LSD",\[\],\{"token":"([^"]+)"\}/,
+        /name="lsd"[^>]+value="([^"]+)"/,
+      );
+      const uid2  = extract(html2fa,
+        /"uid":"?(\d+)"?/,
+        /name="uid"[^>]+value="(\d+)"/,
+        /"user_id":"?(\d+)"?/,
+      );
+
+      if (VERBOSE) {
+        kv('fb_dtsg', fbDtsg2 || '(tidak ditemukan)');
+        kv('nh',      nh2     || '(tidak ditemukan)');
+        kv('lsd',     lsd2    || '(tidak ditemukan)');
+        kv('uid',     uid2    || '(tidak ditemukan)');
+      }
+
+      if (!fbDtsg2 && !nh2) {
+        warn('Tidak bisa extract token dari 2FA page — encrypted_context mungkin expired');
+        warn('Pastikan menjalankan script langsung setelah masuk ke checkpoint');
+      } else {
+        // ── STEP 4 — Submit OTP ────────────────────────────────────────────
+        step(4, 4, 'POST two_step_verification/authentication/ (submit kode OTP)');
+
+        // Minta OTP dari user (interaktif atau --otp arg)
+        const otpCode = OTP || await promptOtp('\n   Masukkan kode OTP 2FA: ');
+
+        if (!otpCode || !/^\d{4,8}$/.test(otpCode)) {
+          err('Kode OTP tidak valid (harus 4-8 digit angka)');
+        } else {
+          kv('OTP', otpCode);
+
+          // POST OTP ke Facebook
+          const otpBody = new URLSearchParams();
+          otpBody.set('approvals_code',    otpCode);
+          otpBody.set('encrypted_context', encCtx);
+          if (fbDtsg2) otpBody.set('fb_dtsg', fbDtsg2);
+          if (nh2)     otpBody.set('nh',      nh2);
+          if (lsd2)    otpBody.set('lsd',     lsd2);
+          if (uid2)    otpBody.set('uid',     uid2);
+          otpBody.set('submit[Submit Code]', 'Submit Code');
+          otpBody.set('__a',  '1');
+          otpBody.set('__req', 'a');
+
+          let r4, otpResponseText = '';
+          try {
+            r4 = await client.post(
+              'https://www.facebook.com/two_step_verification/authentication/',
+              otpBody,
+              {
+                maxRedirects: 5,
+                headers: {
+                  ...SEC_FETCH_XHR,
+                  'Content-Type' : 'application/x-www-form-urlencoded',
+                  'Referer'      : twoFaUrl,
+                  'Origin'       : 'https://www.facebook.com',
+                  'X-Requested-With': 'XMLHttpRequest',
+                },
+              }
+            );
+            otpResponseText = typeof r4.data === 'string' ? r4.data : JSON.stringify(r4.data);
+            kv('Status', r4.status);
+            kv('Length', otpResponseText.length + ' chars');
+            if (VERBOSE) {
+              log('[VERBOSE] OTP Response (400 chars):');
+              log(otpResponseText.substring(0, 400));
+            }
+          } catch (e4) {
+            err('POST OTP gagal: ' + e4.message);
+          }
+
+          // ── Cek hasil OTP ────────────────────────────────────────────────
+          const cookies3 = await jar.getCookies('https://www.facebook.com');
+          const cUser2   = cookies3.find(c => c.key === 'c_user')?.value;
+          const xs2      = cookies3.find(c => c.key === 'xs')?.value;
+
+          log('\n' + '─'.repeat(54));
+          if (cUser2) {
+            ok(`LOGIN BERHASIL — c_user: ${cUser2}`);
+            if (xs2) kv('xs', xs2.substring(0, 24) + '...');
+            verdict = 'success_2fa';
+          } else if (
+            otpResponseText.includes('incorrect') ||
+            otpResponseText.includes('invalid') ||
+            otpResponseText.includes('wrong') ||
+            otpResponseText.includes('error')
+          ) {
+            err('KODE OTP SALAH atau expired — coba lagi dengan kode baru');
+            verdict = 'wrong_otp';
+          } else if (
+            otpResponseText.includes('checkpoint') ||
+            otpResponseText.includes('two_step')
+          ) {
+            warn('2FA berhasil tapi masih ada checkpoint lanjutan');
+            verdict = 'checkpoint_next';
+          } else {
+            warn('OTP response tidak jelas — periksa manual');
+            if (!VERBOSE) log('  Preview: ' + otpResponseText.substring(0, 200));
+            verdict = 'otp_unknown';
+          }
+
+          // Update cookies display
+          log('\nCookies setelah 2FA:');
+          for (const ck of cookies3) {
+            const val = ck.value.length > 40 ? ck.value.substring(0, 40) + '…' : ck.value;
+            log(`  ${ck.key.padEnd(16)} = ${val}`);
+          }
+        }
+      }
+    }
+
   // 3. caa_login_web error codes:
   //    1348009, 1348131 = "login information incorrect" (wrong user/pass atau IP flagged)
   //    1348110           = account disabled
@@ -581,28 +787,34 @@ async function main() {
     verdict = 'unknown';
   }
 
-  // ─── Ringkasan cookies ─────────────────────────────────────────────────────
-  log('\nCookies yang diterima:');
-  if (cookies2.length === 0) {
-    log('  (tidak ada)');
-  } else {
-    for (const ck of cookies2) {
-      const val = ck.value.length > 40 ? ck.value.substring(0, 40) + '…' : ck.value;
-      log(`  ${ck.key.padEnd(16)} = ${val}`);
+  // ─── Ringkasan cookies (hanya untuk non-2FA flow, 2FA sudah tampilkan sendiri) ─
+  const is2faFlow = ['success_2fa', 'wrong_otp', 'checkpoint_next', 'otp_unknown'].includes(verdict);
+  if (!is2faFlow) {
+    log('\nCookies yang diterima:');
+    if (cookies2.length === 0) {
+      log('  (tidak ada)');
+    } else {
+      for (const ck of cookies2) {
+        const val = ck.value.length > 40 ? ck.value.substring(0, 40) + '…' : ck.value;
+        log(`  ${ck.key.padEnd(16)} = ${val}`);
+      }
     }
   }
 
   // ─── Simpan output JSON ────────────────────────────────────────────────────
   if (OUTPUT) {
+    const finalCookies = await jar.getCookies('https://www.facebook.com');
+    const finalCUser   = finalCookies.find(c => c.key === 'c_user')?.value || cUser || null;
+    const finalXs      = finalCookies.find(c => c.key === 'xs')?.value     || xs    || null;
     const result = {
       timestamp    : new Date().toISOString(),
       email        : EMAIL,
       verdict,
       status       : r2.status,
-      c_user       : cUser   || null,
-      xs           : xs      || null,
-      fb_dtsg      : fbdtsg  || null,
-      cookies      : Object.fromEntries(cookies2.map(c => [c.key, c.value])),
+      c_user       : finalCUser,
+      xs           : finalXs,
+      fb_dtsg      : fbdtsg || null,
+      cookies      : Object.fromEntries(finalCookies.map(c => [c.key, c.value])),
       tokens       : { lsd, jazoest, rev, hs, hsi, sessionId, spinR, spinT, spinB, keyId },
       responsePreview: responseText.substring(0, 3000),
       parsed       : parsed || null,
