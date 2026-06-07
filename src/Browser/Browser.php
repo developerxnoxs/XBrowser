@@ -273,16 +273,63 @@ class Browser
     /**
      * Poll /json/version until Chromium's HTTP debug server is ready.
      * Default timeout 60 detik agar perangkat lambat tetap bisa berjalan.
+     *
+     * Tiga perbaikan untuk Termux / perangkat lambat:
+     *
+     * 1. DRAIN PIPES — Chromium menulis banyak output ke stderr saat startup.
+     *    Jika pipe buffer penuh (~64 KB), Chromium akan terhenti menunggu pipe
+     *    dikuras, sementara PHP menunggu debug port tersedia → deadlock klasik.
+     *    Solusi: baca pipe di setiap iterasi polling.
+     *
+     * 2. DETEKSI CRASH — Jika Chromium keluar lebih awal (library hilang, OOM,
+     *    dll.), langsung lempar BrowserCrashException alih-alih menunggu timeout
+     *    penuh lalu melempar TimeoutException yang menyesatkan.
+     *
+     * 3. STDERR LOGGING — Kumpulkan output stderr dan sertakan di pesan error
+     *    agar pengguna tahu kenapa Chromium gagal.
      */
     private function waitForBrowserReady(int $port, int $timeoutMs = 60000): void
     {
-        $deadline = microtime(true) + $timeoutMs / 1000;
+        $deadline  = microtime(true) + $timeoutMs / 1000;
+        $stderrBuf = '';
 
         $this->logger->debug(
             "Waiting for Chromium to be ready (timeout: {$timeoutMs}ms) ..."
         );
 
         while (microtime(true) < $deadline) {
+            // ── 1. Drain stdout/stderr pipes ─────────────────────────────────
+            // Mencegah pipe-buffer deadlock: Chromium bisa macet menulis stderr
+            // jika buffer penuh dan PHP tidak membacanya.
+            if (isset($this->pipes[1]) && is_resource($this->pipes[1])) {
+                $chunk = @fread($this->pipes[1], 65536);
+                if ($chunk !== false && $chunk !== '') {
+                    $this->logger->debug("[chromium stdout] " . rtrim($chunk));
+                }
+            }
+            if (isset($this->pipes[2]) && is_resource($this->pipes[2])) {
+                $chunk = @fread($this->pipes[2], 65536);
+                if ($chunk !== false && $chunk !== '') {
+                    $stderrBuf .= $chunk;
+                    $this->logger->debug("[chromium stderr] " . rtrim($chunk));
+                }
+            }
+
+            // ── 2. Deteksi crash — gagal cepat tanpa tunggu timeout penuh ───
+            if (is_resource($this->chromiumProcess)) {
+                $status = proc_get_status($this->chromiumProcess);
+                if (isset($status['running']) && $status['running'] === false) {
+                    $exitCode = $status['exitcode'] ?? -1;
+                    $hint     = $stderrBuf !== ''
+                        ? "\nOutput Chromium:\n" . substr($stderrBuf, -2000)
+                        : "\nCek apakah Chromium terinstall dengan benar dan semua dependensi tersedia.";
+                    throw new BrowserCrashException(
+                        "Chromium process exited unexpectedly (exit code: {$exitCode}).{$hint}"
+                    );
+                }
+            }
+
+            // ── 3. Poll debug HTTP endpoint ───────────────────────────────────
             $url  = "http://localhost:{$port}/json/version";
             $ctx  = stream_context_create(['http' => ['timeout' => 1]]);
             $body = @file_get_contents($url, false, $ctx);
@@ -298,9 +345,12 @@ class Browser
             usleep(300_000); // 300ms per poll — lebih hemat CPU di perangkat lambat
         }
 
+        $hint = $stderrBuf !== ''
+            ? "\nOutput Chromium:\n" . substr($stderrBuf, -1000)
+            : " Coba naikkan startup_timeout: \$browser->launch(['startup_timeout' => 120000])";
+
         throw new TimeoutException(
-            "Chromium tidak merespons dalam {$timeoutMs}ms. " .
-            "Coba naikkan startup_timeout: \$browser->launch(['startup_timeout' => 120000])",
+            "Chromium tidak merespons dalam {$timeoutMs}ms.{$hint}",
             $timeoutMs
         );
     }
@@ -335,6 +385,26 @@ class Browser
             $args[] = '--disable-setuid-sandbox';
         }
 
+        // ── Termux / Android ──────────────────────────────────────────────────
+        // /dev/shm tidak tersedia di Android → Chromium crash saat startup.
+        // --no-zygote diperlukan karena proses zygote sering gagal di Termux.
+        // Flag ini aman di platform lain (diabaikan atau tidak berpengaruh).
+        if ($this->isTermux()) {
+            if (!in_array('--disable-dev-shm-usage', $args, true)) {
+                $args[] = '--disable-dev-shm-usage';
+            }
+            if (!in_array('--no-zygote', $args, true)) {
+                $args[] = '--no-zygote';
+            }
+            $this->logger->debug("Termux detected: added --disable-dev-shm-usage --no-zygote");
+        }
+
+        // Allow explicit override via option or config (non-Termux juga bisa pakai ini)
+        if (($options['disable_dev_shm'] ?? $this->config->get('disable_dev_shm', false))
+            && !in_array('--disable-dev-shm-usage', $args, true)) {
+            $args[] = '--disable-dev-shm-usage';
+        }
+
         if ($userDataDir) {
             $args[] = "--user-data-dir={$userDataDir}";
         }
@@ -357,5 +427,16 @@ class Browser
         if (!$this->launched) {
             $this->launch();
         }
+    }
+
+    /**
+     * Deteksi apakah berjalan di lingkungan Termux (Android).
+     * Cek TERMUX_VERSION env var atau keberadaan direktori Termux.
+     */
+    private function isTermux(): bool
+    {
+        return getenv('TERMUX_VERSION') !== false
+            || isset($_SERVER['TERMUX_VERSION'])
+            || is_dir('/data/data/com.termux');
     }
 }

@@ -23,6 +23,7 @@ class ConfigManager
         'plugin_dir'            => '',
         'disable_gpu'           => true,
         'no_sandbox'            => false,
+        'disable_dev_shm'       => false,   // paksa --disable-dev-shm-usage (otomatis di Termux)
     ];
 
     /**
@@ -171,16 +172,17 @@ class ConfigManager
     private function loadFromEnv(): array
     {
         $map = [
-            'XBROWSER_CHROMIUM'        => 'chromium_path',
-            'XBROWSER_PORT'            => 'remote_debugging_port',
-            'XBROWSER_TIMEOUT'         => 'timeout',
-            'XBROWSER_STARTUP_TIMEOUT' => 'startup_timeout',
-            'XBROWSER_VERBOSE'         => 'verbose',
-            'XBROWSER_LOG_FILE'        => 'log_file',
-            'XBROWSER_PLUGIN_DIR'      => 'plugin_dir',
-            'XBROWSER_STEALTH'         => 'stealth',
-            'XBROWSER_HEADLESS'        => 'headless',
-            'XBROWSER_NO_SANDBOX'      => 'no_sandbox',
+            'XBROWSER_CHROMIUM'          => 'chromium_path',
+            'XBROWSER_PORT'              => 'remote_debugging_port',
+            'XBROWSER_TIMEOUT'           => 'timeout',
+            'XBROWSER_STARTUP_TIMEOUT'   => 'startup_timeout',
+            'XBROWSER_VERBOSE'           => 'verbose',
+            'XBROWSER_LOG_FILE'          => 'log_file',
+            'XBROWSER_PLUGIN_DIR'        => 'plugin_dir',
+            'XBROWSER_STEALTH'           => 'stealth',
+            'XBROWSER_HEADLESS'          => 'headless',
+            'XBROWSER_NO_SANDBOX'        => 'no_sandbox',
+            'XBROWSER_DISABLE_DEV_SHM'   => 'disable_dev_shm',
         ];
 
         $result = [];
