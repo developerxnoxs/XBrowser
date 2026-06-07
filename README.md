@@ -1,6 +1,6 @@
 # Xbrowser
 
-A terminal-based browser powered by Chrome DevTools Protocol (CDP) and Headless Chromium. Browse, interact with, and automate modern web pages — including JavaScript-heavy sites like React, Vue, Next.js — entirely from your terminal.
+Browser terminal berbasis **Chrome DevTools Protocol (CDP)** dan Headless Chromium. Jelajahi, otomasi, dan intercept halaman web modern — termasuk situs berbasis React, Vue, Next.js — langsung dari terminal atau lewat PHP API.
 
 ```
   ██╗  ██╗██████╗ ██████╗  ██████╗ ██╗    ██╗███████╗███████╗██████╗
@@ -13,16 +13,49 @@ A terminal-based browser powered by Chrome DevTools Protocol (CDP) and Headless 
 
 ---
 
-## Requirements
+## Daftar Isi
 
-- PHP 8.4+
-- Composer
-- Chromium or Google Chrome installed
-- POSIX-compatible OS (Linux, macOS)
+- [Persyaratan](#persyaratan)
+- [Instalasi](#instalasi)
+- [Quick Start](#quick-start)
+- [CLI Commands](#cli-commands)
+- [Interactive Shell](#interactive-shell)
+- [Automation API](#automation-api)
+  - [Navigasi](#navigasi)
+  - [Elemen DOM](#elemen-dom)
+  - [JavaScript](#javascript)
+  - [Form & Input](#form--input)
+  - [Screenshot](#screenshot)
+  - [Cookie & Storage](#cookie--storage)
+  - [Headers, User-Agent & Viewport](#headers-user-agent--viewport)
+  - [Rekam & Putar Ulang](#rekam--putar-ulang)
+- [Network Capture](#network-capture)
+- [Request Interception](#request-interception)
+- [Stealth Mode & Bot Detection](#stealth-mode--bot-detection)
+- [Session Management](#session-management)
+- [Sistem Event](#sistem-event)
+- [Plugin](#plugin)
+- [Konfigurasi](#konfigurasi)
+- [Docker](#docker)
+- [Terminal Renderer](#terminal-renderer)
+- [Struktur Project](#struktur-project)
+- [Menjalankan Tests](#menjalankan-tests)
+- [Troubleshooting](#troubleshooting)
+- [Arsitektur](#arsitektur)
+- [Lisensi](#lisensi)
 
 ---
 
-## Installation
+## Persyaratan
+
+- PHP **8.4+**
+- Composer
+- Chromium atau Google Chrome
+- OS: Linux, macOS, atau Android (Termux)
+
+---
+
+## Instalasi
 
 ```bash
 git clone https://github.com/your-org/xbrowser.git
@@ -31,7 +64,7 @@ composer install
 chmod +x bin/Xbrowser
 ```
 
-Optionally link globally:
+Opsional — daftarkan sebagai command global:
 
 ```bash
 sudo ln -s "$(pwd)/bin/Xbrowser" /usr/local/bin/Xbrowser
@@ -42,36 +75,39 @@ sudo ln -s "$(pwd)/bin/Xbrowser" /usr/local/bin/Xbrowser
 ## Quick Start
 
 ```bash
-# Open a URL and render it in the terminal
+# Buka URL dan render ke terminal
 Xbrowser open https://example.com
 
-# Start the interactive shell
+# Mulai interactive shell
 Xbrowser shell
+
+# Jalankan tanpa install (via Docker)
+docker run -it --rm --shm-size=256m --cap-add=SYS_ADMIN xbrowser:latest shell
 ```
 
 ---
 
 ## CLI Commands
 
-### Open a URL
+### `open` — Buka URL
 
 ```bash
 Xbrowser open https://github.com
 ```
 
-Launches Chromium, loads the page (including JavaScript), and renders the result in your terminal.
+Meluncurkan Chromium, memuat halaman (termasuk JavaScript), lalu merender hasilnya di terminal.
 
 ---
 
-### Click an Element
+### `click` — Klik elemen
 
 ```bash
-Xbrowser click https://example.com "#login"
+Xbrowser click https://example.com "#login-button"
 ```
 
 ---
 
-### Type into an Element
+### `type` — Ketik ke elemen
 
 ```bash
 Xbrowser type https://example.com "#email" "user@example.com"
@@ -79,7 +115,7 @@ Xbrowser type https://example.com "#email" "user@example.com"
 
 ---
 
-### Evaluate JavaScript
+### `eval` — Evaluasi JavaScript
 
 ```bash
 Xbrowser eval https://example.com "document.title"
@@ -88,59 +124,55 @@ Xbrowser eval https://example.com "document.querySelectorAll('a').length"
 
 ---
 
-### Take a Screenshot
+### `screenshot` — Ambil screenshot
 
 ```bash
-Xbrowser screenshot https://example.com page.png
-Xbrowser screenshot https://example.com page.jpg   # JPEG format
+Xbrowser screenshot https://example.com halaman.png
+Xbrowser screenshot https://example.com halaman.jpg
 ```
 
 ---
 
-### Dump Raw HTML
+### `html` — Dump HTML mentah
 
 ```bash
 Xbrowser html https://example.com
-Xbrowser html https://example.com > page.html
+Xbrowser html https://example.com > halaman.html
 ```
 
 ---
 
-### Inspect Network Traffic
+### `network` — Inspeksi network traffic
 
 ```bash
 Xbrowser network https://example.com
 ```
 
-Output shows all requests, their methods, response status codes, and URLs.
+Menampilkan semua request beserta method, status code, dan URL-nya.
 
 ---
 
-### Session Management
-
-Save the current cookies, localStorage, and URL:
+### `save-session` / `load-session` — Manajemen sesi
 
 ```bash
-Xbrowser save-session https://github.com mysession
+# Simpan cookies, localStorage, dan URL saat ini
+Xbrowser save-session https://github.com sesi-saya
+
+# Muat sesi yang tersimpan
+Xbrowser load-session sesi-saya
 ```
 
-Restore a session later:
-
-```bash
-Xbrowser load-session mysession
-```
-
-Sessions are stored in `~/.xbrowser/sessions/`.
+Sesi disimpan di `~/.xbrowser/sessions/`.
 
 ---
 
-### Record Actions
+### `record` — Rekam aksi
 
 ```bash
 Xbrowser record
 ```
 
-This opens an interactive recorder. Every action you take (open, click, type, etc.) is captured and output as a PHP automation script:
+Membuka perekam interaktif. Setiap aksi yang kamu lakukan dikonversi menjadi PHP automation script:
 
 ```php
 $page->goto('https://example.com');
@@ -156,54 +188,54 @@ $page->type('#email', 'user@example.com');
 Xbrowser shell
 ```
 
-Starts an interactive REPL-style browser shell:
+Membuka REPL-style browser shell:
 
 ```
 Xbrowser v1.0.0 — Terminal Browser
-Type 'help' for available commands.
+Ketik 'help' untuk daftar perintah.
 
 [Xbrowser] > open https://github.com
-[GitHub · Build and ship software on a single, collaborative platform] > render
+[GitHub · Build and ship software...] > render
 [GitHub · ...] > click a[href="/login"]
 [GitHub · ...] > type #login_field myuser
 [GitHub · ...] > type #password mysecret
 [GitHub · ...] > submit
 [GitHub · ...] > screenshot dashboard.png
-[GitHub · ...] > save-session github-session
+[GitHub · ...] > save-session github-sesi
 [GitHub · ...] > quit
 ```
 
-### Shell Commands
+### Daftar Perintah Shell
 
-| Command                  | Description                          |
+| Perintah                 | Keterangan                           |
 |--------------------------|--------------------------------------|
-| `open <url>`             | Navigate to a URL                    |
-| `render`                 | Render current page to terminal      |
-| `html`                   | Dump raw HTML                        |
-| `click <selector>`       | Click a CSS selector                 |
-| `type <selector> <text>` | Type into an element                 |
-| `eval <expression>`      | Evaluate JavaScript                  |
-| `screenshot <file>`      | Take a screenshot                    |
-| `submit [selector]`      | Submit a form                        |
-| `back`                   | Go back                              |
-| `forward`                | Go forward                           |
-| `reload`                 | Reload the page                      |
-| `wait <selector>`        | Wait for an element to appear        |
-| `cookies`                | Show current cookies                 |
-| `title`                  | Show page title                      |
-| `url`                    | Show current URL                     |
-| `save-session <name>`    | Save browser session                 |
-| `load-session <name>`    | Load a saved session                 |
-| `network`                | Show network request summary         |
-| `clear`                  | Clear the terminal                   |
-| `help`                   | Show command list                    |
-| `quit` / `exit`          | Close and exit                       |
+| `open <url>`             | Navigasi ke URL                      |
+| `render`                 | Render halaman ke terminal           |
+| `html`                   | Dump HTML mentah                     |
+| `click <selector>`       | Klik elemen CSS selector             |
+| `type <selector> <teks>` | Ketik ke dalam elemen                |
+| `eval <ekspresi>`        | Evaluasi JavaScript                  |
+| `screenshot <file>`      | Ambil screenshot                     |
+| `submit [selector]`      | Submit form                          |
+| `back`                   | Kembali                              |
+| `forward`                | Maju                                 |
+| `reload`                 | Reload halaman                       |
+| `wait <selector>`        | Tunggu elemen muncul                 |
+| `cookies`                | Tampilkan cookies saat ini           |
+| `title`                  | Tampilkan judul halaman              |
+| `url`                    | Tampilkan URL saat ini               |
+| `save-session <nama>`    | Simpan sesi browser                  |
+| `load-session <nama>`    | Muat sesi yang tersimpan             |
+| `network`                | Tampilkan ringkasan network          |
+| `clear`                  | Bersihkan terminal                   |
+| `help`                   | Tampilkan daftar perintah            |
+| `quit` / `exit`          | Tutup dan keluar                     |
 
 ---
 
 ## Automation API
 
-Xbrowser can be used as a PHP library for browser automation — similar to Playwright or Selenium.
+Xbrowser dapat digunakan sebagai library PHP untuk otomasi browser — mirip Playwright atau Puppeteer.
 
 ```php
 <?php
@@ -216,77 +248,489 @@ $browser = BrowserFactory::create(['verbose' => true]);
 $browser->launch();
 
 $page = $browser->newPage();
-$page->goto('https://example.com');
 
-// Query elements
-$heading = $page->query('h1');
-
-// Click
-$page->click('#login-button');
-
-// Type text
-$page->type('#email', 'admin@example.com');
-$page->type('#password', 'secret');
-
-// Submit form
-$page->submit('#login-form');
-
-// Wait for navigation
-$page->waitForNavigation();
-
-// Wait for element
-$page->waitForSelector('.dashboard-header');
-
-// Evaluate JavaScript
-$title    = $page->evaluate('document.title');
-$linkCount = $page->evaluate('document.querySelectorAll("a").length');
-
-// Take screenshot
-$page->screenshot('dashboard.png');
-
-// Get page HTML
-$html = $page->html();
-
-// Render to terminal
-echo $page->render();
+// ... aksi otomasi ...
 
 $browser->close();
 ```
 
+> **BrowserFactory::create(array $options)** — cara yang direkomendasikan untuk membuat instance Browser.
+> Secara otomatis mengatur Logger, EventDispatcher, ConfigManager, dan PluginManager.
+>
+> Option yang tersedia: `verbose`, `logFile`, `configFile`, `pluginDir`, `launch` (bool — langsung launch).
+
 ---
 
-## Scraping Example
+### Navigasi
+
+```php
+// Buka URL (tunggu hingga document.readyState === 'complete')
+$page->goto('https://example.com');
+$page->goto('https://example.com', timeoutMs: 60000); // timeout custom
+
+// Navigasi relatif
+$page->goBack();
+$page->goForward();
+$page->reload();
+$page->reload(ignoreCache: true);
+
+// Tunggu navigasi selesai (berguna setelah klik link)
+$page->waitForNavigation();
+
+// Tunggu halaman selesai load
+$page->waitForLoad(timeoutMs: 30000);
+
+// Ambil info halaman
+echo $page->getUrl();    // URL saat ini
+echo $page->getTitle();  // Judul halaman
+```
+
+---
+
+### Elemen DOM
+
+```php
+use Xbrowser\DOM\Element;
+
+// Query satu elemen (melempar SelectorNotFoundException jika tidak ada)
+$element = $page->query('#login-button');
+$element = $page->query('form input[type="email"]');
+
+// Query semua elemen yang cocok
+$links = $page->queryAll('a[href]');
+foreach ($links as $link) {
+    // $link adalah instance Element
+}
+
+// Tunggu elemen muncul (polling hingga timeout)
+$el = $page->waitForSelector('.dashboard', timeoutMs: 10000);
+
+// Ambil HTML halaman
+$html = $page->html();
+
+// Render ke terminal
+echo $page->render();
+```
+
+---
+
+### JavaScript
+
+```php
+// Evaluasi ekspresi JavaScript — mengembalikan nilai PHP
+$title  = $page->evaluate('document.title');                       // string
+$count  = $page->evaluate('document.querySelectorAll("a").length'); // int
+$exists = $page->evaluate('!!document.querySelector(".modal")');   // bool
+
+// Evaluasi multi-baris
+$data = $page->evaluate(<<<JS
+    Array.from(document.querySelectorAll('.item'))
+        .map(el => ({ text: el.textContent.trim(), href: el.href ?? '' }))
+JS);
+
+// $data adalah array PHP siap pakai
+foreach ($data as $item) {
+    echo $item['text'] . ' → ' . $item['href'] . "\n";
+}
+```
+
+> JavaScript dieksekusi di konteks halaman. Promise otomatis di-await. Jika ekspresi melempar error, `JavaScriptException` akan dilempar.
+
+---
+
+### Form & Input
+
+```php
+// Klik elemen (mensimulasikan mouse click + JS click handler)
+$page->click('#login-button');
+$page->click('button[type="submit"]');
+
+// Ketik ke input (kompatibel dengan React, Vue, Angular)
+$page->type('#email', 'user@example.com');
+$page->type('#password', 'rahasia123');
+
+// Submit form
+$page->submit('#login-form');
+$page->submit(); // default: elemen 'form' pertama
+```
+
+> `type()` menggunakan native prototype setter sehingga framework controlled input (React, Vue) bisa mendeteksi perubahan dengan benar.
+
+---
+
+### Screenshot
+
+```php
+// Screenshot ke file (format auto-detect dari ekstensi)
+$page->screenshot('output/halaman.png');
+$page->screenshot('output/halaman.jpg', format: 'jpeg');
+
+// Ubah ukuran viewport sebelum screenshot
+$page->setViewport(1920, 1080);
+$page->screenshot('output/fullhd.png');
+```
+
+---
+
+### Cookie & Storage
+
+```php
+// Baca cookies
+$cookies = $page->getCookies();
+foreach ($cookies as $cookie) {
+    echo $cookie['name'] . '=' . $cookie['value'] . "\n";
+}
+
+// Set cookies
+$page->setCookies([
+    ['name' => 'token', 'value' => 'abc123', 'domain' => 'example.com'],
+]);
+
+// Hapus semua cookies
+$page->clearCookies();
+
+// Baca localStorage
+$storage = $page->getLocalStorage();
+echo $storage['user_id'] ?? 'tidak ada';
+
+// Baca sessionStorage
+$session = $page->getSessionStorage();
+```
+
+---
+
+### Headers, User-Agent & Viewport
+
+```php
+// Tambahkan header ke semua request berikutnya
+$page->setExtraHeaders([
+    'Authorization'  => 'Bearer token-saya',
+    'X-Custom-Header'=> 'nilai',
+]);
+
+// Ganti User-Agent
+$page->setUserAgent(
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' .
+    '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+);
+
+// Atur ukuran viewport (default 1280x800)
+$page->setViewport(1366, 768);
+$page->setViewport(375, 812); // simulasi mobile
+```
+
+---
+
+### Rekam & Putar Ulang
+
+```php
+// Mulai perekaman
+$page->startRecording();
+
+$page->goto('https://example.com');
+$page->click('#login');
+$page->type('#email', 'user@example.com');
+$page->submit();
+
+// Hentikan dan dapatkan script PHP
+$script = $page->stopRecording();
+file_put_contents('script_saya.php', $script);
+
+// Akses raw array aksi yang direkam
+$actions = $page->getRecordedActions();
+```
+
+Script yang dihasilkan siap dijalankan ulang:
 
 ```php
 <?php
 
 require 'vendor/autoload.php';
 
-use Xbrowser\Browser\BrowserFactory;
+use Xbrowser\Browser\Browser;
 
-$browser = BrowserFactory::create();
-$browser->launch();
+$browser = new Browser(...);
+$page    = $browser->newPage();
 
-$page = $browser->newPage();
-$page->goto('https://news.ycombinator.com');
-
-$titles = $page->evaluate(<<<JS
-    Array.from(document.querySelectorAll('.titleline > a'))
-        .slice(0, 10)
-        .map(el => ({ title: el.textContent, href: el.href }))
-JS);
-
-foreach ($titles as $item) {
-    echo "• " . $item['title'] . "\n";
-    echo "  " . $item['href'] . "\n\n";
-}
+$page->goto('https://example.com');
+$page->click('#login');
+$page->type('#email', 'user@example.com');
+$page->submit();
 
 $browser->close();
 ```
 
 ---
 
-## Session Management API
+## Network Capture
+
+`startCapture()` merekam semua network traffic secara **pasif** — tidak menghentikan request.
+
+```php
+<?php
+
+use Xbrowser\Browser\BrowserFactory;
+
+$browser = BrowserFactory::create();
+$browser->launch();
+
+$page    = $browser->newPage();
+$capture = $page->startCapture();
+
+// Filter domain tertentu saja
+$capture->filterDomain('api.example.com');
+
+// Deteksi otomatis kredensial di POST body
+$capture->scanCredentials(['password', 'pass=', 'token']);
+
+// Nonaktifkan fetch body otomatis (hemat memori)
+$capture->disableLiveBodyFetch();
+
+$page->goto('https://example.com');
+$page->click('#login');
+$page->type('#email', 'user@example.com');
+$page->type('#password', 'rahasia');
+$page->submit();
+
+// Ambil body yang tertunda setelah aksi selesai
+$capture->fetchPendingBodies();
+
+// Akses data
+$semua   = $capture->getAll();           // semua entry
+$posts   = $capture->getPosts();         // hanya POST
+$creds   = $capture->getWithCredentials(); // yang mengandung kredensial
+$api     = $capture->findByUrl('/api/');  // filter by URL pattern
+
+// Statistik
+print_r($capture->summary());
+// ['total' => 42, 'posts' => 5, 'withCredentials' => 1, 'succeeded' => 40, 'failed' => 2, ...]
+
+// Simpan ke JSON
+$capture->saveJson('output/capture.json');
+
+// Reset data
+$capture->clear();
+
+$browser->close();
+```
+
+### Struktur CapturedEntry
+
+Setiap entry yang direkam memiliki properti berikut:
+
+| Properti | Tipe | Keterangan |
+|----------|------|-----------|
+| `requestId` | string | ID unik request CDP |
+| `method` | string | HTTP method (GET, POST, dll.) |
+| `url` | string | URL request |
+| `requestHeaders` | array | Request headers |
+| `postData` | string | Body POST (jika ada) |
+| `resourceType` | string | Tipe resource (XHR, Document, Image, dll.) |
+| `hasCredentials` | bool | Apakah POST data mengandung kredensial |
+| `responseStatus` | int | HTTP status code response |
+| `responseHeaders` | array | Response headers |
+| `responseBody` | string | Response body (max 5000 karakter) |
+| `bodyFetched` | bool | Apakah body sudah diambil |
+| `capturedAt` | float | Timestamp (microtime) |
+
+---
+
+## Request Interception
+
+`intercept()` menghentikan setiap request **sebelum dikirim** ke server dan menunggu keputusan handler.
+
+> Berbeda dari `startCapture()` yang hanya mengamati (pasif), `intercept()` bisa memblokir, memodifikasi, atau membalas request dengan response buatan.
+
+```php
+<?php
+
+use Xbrowser\Browser\BrowserFactory;
+use Xbrowser\Networking\InterceptedRequest;
+
+$browser = BrowserFactory::create();
+$browser->launch();
+$page = $browser->newPage();
+```
+
+### 1. Blokir gambar & iklan
+
+```php
+$interceptor = $page->intercept();
+$interceptor
+    ->blockResourceTypes(['Image', 'Media', 'Font'])  // berdasarkan tipe
+    ->blockAds();                                      // tracker umum
+
+$page->goto('https://example.com');
+print_r($interceptor->getStats());
+// ['total' => 35, 'blocked' => 18, 'allowed' => 17, ...]
+
+$interceptor->disable();
+```
+
+### 2. Blokir URL tertentu
+
+```php
+$interceptor = $page->intercept();
+$interceptor->blockUrls(['analytics', 'hotjar', 'pixel.facebook']);
+
+$page->goto('https://example.com');
+$interceptor->disable();
+```
+
+### 3. Inject header ke setiap request
+
+```php
+$interceptor = $page->intercept();
+$interceptor->onRequest(function (InterceptedRequest $req): void {
+    $req->continue([
+        'headers' => array_merge($req->headers, [
+            'Authorization'  => 'Bearer token-saya',
+            'X-Xbrowser'     => '1.0',
+        ]),
+    ]);
+});
+
+$page->goto('https://httpbin.org/headers');
+$interceptor->disable();
+```
+
+### 4. Mock respons API
+
+```php
+$interceptor = $page->intercept();
+$interceptor->onRequest(function (InterceptedRequest $req): void {
+    if (str_contains($req->url, '/api/user')) {
+        $req->respond([
+            'status'   => 200,
+            'mimeType' => 'application/json',
+            'body'     => json_encode(['id' => 1, 'name' => 'Mock User']),
+        ]);
+    } else {
+        $req->continue();
+    }
+});
+
+$page->goto('https://example.com');
+$interceptor->disable();
+```
+
+### 5. Redirect URL
+
+```php
+$interceptor = $page->intercept();
+$interceptor->onRequest(function (InterceptedRequest $req): void {
+    $url = str_replace('cdn.lama.com', 'cdn.baru.com', $req->url);
+    $req->continue(['url' => $url]);
+});
+
+$page->goto('https://example.com');
+$interceptor->disable();
+```
+
+### 6. Intercept XHR saja
+
+```php
+$interceptor = $page->intercept();
+$interceptor
+    ->interceptXhr()  // hanya XHR + Fetch
+    ->onRequest(function (InterceptedRequest $req): void {
+        echo "[{$req->method}] {$req->url}\n";
+        $req->continue();
+    });
+
+$page->goto('https://example.com');
+$interceptor->disable();
+```
+
+### API — RequestInterceptor
+
+| Method | Keterangan |
+|--------|-----------|
+| `onRequest(callable)` | Daftarkan handler untuk setiap request |
+| `blockResourceTypes(string[])` | Blokir berdasarkan tipe (Image, Script, Font, Media, dll.) |
+| `blockUrls(string[])` | Blokir URL yang mengandung substring |
+| `addHeaders(array)` | Inject header ke semua request |
+| `blockAds()` | Blokir tracker & iklan (daftar domain bawaan) |
+| `interceptAll()` | Intercept semua request (default) |
+| `interceptXhr()` | Intercept hanya XHR dan Fetch |
+| `interceptStatic()` | Intercept resource statis (Image, Stylesheet, Font) |
+| `addPattern(urlPattern, ?resourceType)` | Tambah pola URL/tipe kustom |
+| `getStats()` | Statistik: total, blocked, modified, mocked, allowed |
+| `resetStats()` | Reset statistik |
+| `disable()` | Matikan interceptor |
+| `isEnabled()` | Cek apakah aktif |
+
+### API — InterceptedRequest
+
+Di dalam handler, **wajib** memanggil tepat satu aksi:
+
+| Method | Keterangan |
+|--------|-----------|
+| `$req->continue(array $overrides = [])` | Teruskan request. Override opsional: `url`, `method`, `headers`, `postData` |
+| `$req->abort(string $reason = 'BlockedByClient')` | Batalkan request |
+| `$req->respond(array $response)` | Balas dengan response buatan: `status`, `headers`, `body`, `mimeType` |
+| `$req->isHandled()` | Cek apakah sudah ditangani |
+
+**Properti InterceptedRequest (readonly):**
+
+| Properti | Tipe | Keterangan |
+|----------|------|-----------|
+| `url` | string | URL request |
+| `method` | string | HTTP method |
+| `headers` | array | Request headers |
+| `postData` | string | Request body |
+| `resourceType` | string | Tipe: Document, XHR, Fetch, Image, Script, Stylesheet, Font, Media, dll. |
+| `requestId` | string | ID unik CDP |
+| `frameId` | string | ID frame asal |
+
+---
+
+## Stealth Mode & Bot Detection
+
+Xbrowser aktifkan Stealth Mode secara default untuk menghindari deteksi bot.
+
+```php
+$browser = BrowserFactory::create();
+$browser->launch(['stealth' => true]); // default: true
+```
+
+Patch yang diterapkan secara otomatis:
+- `navigator.webdriver` → disembunyikan (`undefined`)
+- `navigator.plugins` → disimulasikan (3 plugin palsu)
+- `navigator.languages` → `['id-ID', 'id', 'en-US', 'en']`
+- `window.chrome` → object palsu agar terlihat seperti Chrome biasa
+- User-Agent → menghapus string `HeadlessChrome`
+
+### Cek Status Bot Detection
+
+```php
+$result = $page->checkBotDetection();
+
+echo $result->describe();
+// ✓ navigator.webdriver hidden
+// ✓ navigator.plugins present (3 plugins)
+// ✓ window.chrome object present
+// ✓ navigator.languages present
+// ✓ User-Agent clean (no "HeadlessChrome")
+
+echo "Skor: " . $result->score() . "/5\n";
+echo "Lulus: " . ($result->isPassed() ? 'Ya' : 'Tidak') . "\n";
+echo "User-Agent: " . $result->userAgent . "\n";
+
+// Akses detail cek individual
+var_dump($result->webdriverHidden);
+var_dump($result->pluginsPresent);
+var_dump($result->chromeObjectPresent);
+var_dump($result->languagesPresent);
+var_dump($result->userAgentClean);
+var_dump($result->rawChecks); // semua nilai mentah dari browser
+```
+
+---
+
+## Session Management
+
+Simpan dan pulihkan state browser (cookies, localStorage, sessionStorage, URL).
 
 ```php
 <?php
@@ -295,441 +739,196 @@ use Xbrowser\Browser\BrowserFactory;
 use Xbrowser\Utils\SessionManager;
 
 $browser  = BrowserFactory::create();
-$sessions = new SessionManager();
+$sessions = new SessionManager(); // default: ~/.xbrowser/sessions/
 
 $browser->launch();
 $page = $browser->newPage();
 
-// Load a saved session (cookies + URL)
-$page->loadSession('my-session', $sessions);
+// Login sekali
+$page->goto('https://example.com/login');
+$page->type('#email', 'user@example.com');
+$page->type('#password', 'rahasia');
+$page->submit();
+$page->waitForSelector('.dashboard');
 
-// Save the current session
-$page->saveSession('my-session', $sessions);
+// Simpan sesi setelah login berhasil
+$page->saveSession('sesi-login', $sessions);
 
-$browser->close();
-```
+// --- sesi berikutnya ---
 
----
-
-## Network Inspection API
-
-```php
-<?php
-
-use Xbrowser\Browser\BrowserFactory;
-
-$browser = BrowserFactory::create();
-$browser->launch();
-
-$page      = $browser->newPage();
-$inspector = $page->getNetworkInspector();
-
-$page->goto('https://example.com');
-
-foreach ($inspector->getRequests() as $req) {
-    echo "{$req->method} {$req->url}\n";
-}
-
-foreach ($inspector->getResponses() as $resp) {
-    echo "{$resp->statusCode} {$resp->url}\n";
-}
-
-$summary = $inspector->summary();
-echo "Total: {$summary['total']} | OK: {$summary['succeeded']} | Failed: {$summary['failed']}\n";
+// Muat sesi (memulihkan cookies + navigasi ke URL terakhir)
+$page->loadSession('sesi-login', $sessions);
+// Sekarang sudah login tanpa perlu input ulang
 
 $browser->close();
 ```
 
 ---
 
-## Request Interception
-
-Gunakan `$page->intercept()` untuk **menghentikan request sebelum dikirim** ke server — blokir, modifikasi, atau balas dengan response buatan sendiri.
-
-> Berbeda dari `startCapture()` yang hanya mengamati traffic secara pasif, `intercept()` benar-benar menghentikan setiap request dan menunggu keputusan kamu.
-
-```php
-<?php
-
-use Xbrowser\Browser\Browser;
-use Xbrowser\Networking\InterceptedRequest;
-
-$browser = new Browser();
-$page    = $browser->newPage();
-
-// ── 1. Blokir gambar & iklan (halaman lebih cepat) ───────────────────────────
-$interceptor = $page->intercept();
-$interceptor
-    ->blockResourceTypes(['Image', 'Media', 'Font'])
-    ->blockAds();
-
-$page->goto('https://example.com');
-print_r($interceptor->getStats());
-$interceptor->disable();
-
-
-// ── 2. Inject header ke setiap request ───────────────────────────────────────
-$interceptor2 = $page->intercept();
-$interceptor2->onRequest(function (InterceptedRequest $req): void {
-    $req->continue([
-        'headers' => array_merge($req->headers, [
-            'X-Powered-By'  => 'Xbrowser',
-            'Authorization' => 'Bearer my-token',
-        ]),
-    ]);
-});
-
-$page->goto('https://httpbin.org/headers');
-$interceptor2->disable();
-
-
-// ── 3. Mock respons API (tanpa server nyata) ──────────────────────────────────
-$interceptor3 = $page->intercept();
-$interceptor3->onRequest(function (InterceptedRequest $req): void {
-    if (str_contains($req->url, '/api/user')) {
-        $req->respond([
-            'status'   => 200,
-            'mimeType' => 'application/json',
-            'body'     => '{"id":1,"name":"Mock User"}',
-        ]);
-    } else {
-        $req->continue();
-    }
-});
-
-$page->goto('https://example.com');
-$interceptor3->disable();
-
-
-// ── 4. Redirect URL tertentu ──────────────────────────────────────────────────
-$interceptor4 = $page->intercept();
-$interceptor4->onRequest(function (InterceptedRequest $req): void {
-    if (str_contains($req->url, 'cdn.old-provider.com')) {
-        $req->continue([
-            'url' => str_replace('cdn.old-provider.com', 'cdn.new-provider.com', $req->url),
-        ]);
-    } else {
-        $req->continue();
-    }
-});
-
-$page->goto('https://example.com');
-$interceptor4->disable();
-
-$browser->close();
-```
-
-### API Referensi — RequestInterceptor
-
-| Method | Deskripsi |
-|--------|-----------|
-| `onRequest(callable $handler)` | Daftarkan handler untuk setiap request |
-| `blockResourceTypes(string[])` | Blokir berdasarkan tipe (Image, Script, dll.) |
-| `blockUrls(string[])` | Blokir URL yang mengandung substring |
-| `addHeaders(array)` | Inject header ke semua request |
-| `blockAds()` | Blokir tracker & iklan umum |
-| `interceptXhr()` | Intercept hanya XHR dan Fetch |
-| `interceptStatic()` | Intercept resource statis (img, css, font) |
-| `addPattern(string, ?string)` | Tambah pola URL/resourceType kustom |
-| `getStats()` | Statistik: total, blocked, modified, allowed |
-| `disable()` | Matikan interceptor |
-
-### API Referensi — InterceptedRequest
-
-Di dalam handler, **wajib** memanggil salah satu dari tiga aksi:
-
-| Method | Deskripsi |
-|--------|-----------|
-| `$req->continue(array $overrides = [])` | Teruskan (opsional: override url/method/headers/postData) |
-| `$req->abort(string $reason = 'BlockedByClient')` | Batalkan request |
-| `$req->respond(array $response)` | Balas dengan response buatan (status/headers/body/mimeType) |
-
----
-
-## Event System
+## Sistem Event
 
 ```php
 <?php
 
 use Xbrowser\Browser\BrowserFactory;
 use Xbrowser\Events\PageLoadedEvent;
+use Xbrowser\Events\NavigationEvent;
 use Xbrowser\Events\ClickEvent;
+use Xbrowser\Events\JavaScriptExecutedEvent;
 
 $browser    = BrowserFactory::create();
 $dispatcher = $browser->getDispatcher();
 
+// Langganan event
 $dispatcher->on('page.loaded', function (PageLoadedEvent $event): void {
-    echo "Page loaded: " . $event->getUrl() . "\n";
+    echo "Halaman dimuat: " . $event->getPayload()['url'] . "\n";
+});
+
+$dispatcher->on('page.navigation', function (NavigationEvent $event): void {
+    $p = $event->getPayload();
+    echo "Navigasi: {$p['from']} → {$p['to']}\n";
 });
 
 $dispatcher->on('element.clicked', function (ClickEvent $event): void {
-    echo "Clicked: " . $event->getSelector() . "\n";
+    $p = $event->getPayload();
+    echo "Diklik: {$p['selector']} di ({$p['x']}, {$p['y']})\n";
 });
+
+// Hanya dipanggil sekali
+$dispatcher->once('page.loaded', function ($event): void {
+    echo "Ini hanya muncul sekali.\n";
+});
+
+// Wildcard — semua event
+$dispatcher->on('*', function ($event): void {
+    echo "[event] " . $event->getName() . "\n";
+});
+
+// Hapus listener tertentu
+$handler = function ($event) { /* ... */ };
+$dispatcher->on('page.loaded', $handler);
+$dispatcher->off('page.loaded', $handler);
+
+// Hapus semua listener suatu event
+$dispatcher->removeAll('page.loaded');
 
 $browser->launch();
 $page = $browser->newPage();
 $page->goto('https://example.com');
-$page->click('a');
-
 $browser->close();
 ```
 
-### Available Events
+### Daftar Event
 
-| Event Name            | Class                     | When fired                   |
-|-----------------------|---------------------------|------------------------------|
-| `page.loaded`         | `PageLoadedEvent`         | Page fully loaded            |
-| `page.navigation`     | `NavigationEvent`         | URL changes                  |
-| `element.clicked`     | `ClickEvent`              | `$page->click()` called      |
-| `dom.updated`         | `DomUpdatedEvent`         | DOM mutation detected        |
-| `javascript.executed` | `JavaScriptExecutedEvent` | `$page->evaluate()` called   |
-| `network.request`     | `NetworkRequestEvent`     | Network request sent         |
-| `*`                   | —                         | All events (wildcard)        |
+| Nama Event | Class | Kapan Dipicu |
+|------------|-------|-------------|
+| `page.loaded` | `PageLoadedEvent` | Halaman selesai dimuat |
+| `page.navigation` | `NavigationEvent` | URL berubah |
+| `element.clicked` | `ClickEvent` | `$page->click()` dipanggil |
+| `dom.updated` | `DomUpdatedEvent` | Mutasi DOM terdeteksi |
+| `javascript.executed` | `JavaScriptExecutedEvent` | `$page->evaluate()` dipanggil |
+| `network.request` | `NetworkRequestEvent` | Request network dikirim |
+| `*` | — | Semua event (wildcard) |
 
 ---
 
-## Plugin Development
+## Plugin
 
-Create a directory under `plugins/` with a `plugin.php` file that returns a `PluginInterface` instance:
+Buat direktori di `plugins/` dengan file `plugin.php` yang mengembalikan instance `PluginInterface`:
 
 ```
 plugins/
-└── my-plugin/
+└── plugin-saya/
     └── plugin.php
 ```
 
 ```php
 <?php
-// plugins/my-plugin/plugin.php
+// plugins/plugin-saya/plugin.php
 
 use Xbrowser\Browser\Browser;
 use Xbrowser\Plugin\PluginInterface;
 
 return new class implements PluginInterface
 {
-    public function getName(): string    { return 'my-plugin'; }
-    public function getVersion(): string { return '1.0.0'; }
-    public function getDescription(): string { return 'My custom plugin'; }
+    public function getName(): string        { return 'plugin-saya'; }
+    public function getVersion(): string     { return '1.0.0'; }
+    public function getDescription(): string { return 'Plugin kustom saya'; }
 
     public function register(Browser $browser): void
     {
         $browser->getDispatcher()->on('page.loaded', function ($event): void {
-            echo "[my-plugin] Page loaded: " . $event->getPayload()['url'] . "\n";
+            $url = $event->getPayload()['url'];
+            echo "[plugin-saya] Halaman dimuat: {$url}\n";
         });
     }
 
     public function getCommands(): array
     {
         return [
-            'my-command' => function (array $args): void {
-                echo "Hello from my-plugin!\n";
+            'salam' => function (array $args): void {
+                echo "Halo dari plugin-saya!\n";
             },
         ];
     }
 };
 ```
 
-Plugins are auto-discovered from the `plugins/` directory on startup.
+Plugin di-discover otomatis dari direktori `plugins/` saat startup.
+
+Daftarkan direktori plugin kustom:
+
+```php
+$browser = BrowserFactory::create([
+    'pluginDir' => '/path/ke/plugins-saya',
+]);
+```
 
 ---
 
-## Configuration
+## Konfigurasi
 
-Xbrowser reads configuration from `~/.xbrowser/config.json`:
+### File konfigurasi
+
+Xbrowser membaca konfigurasi dari `~/.xbrowser/config.json`:
 
 ```json
 {
-    "chromium_path": "/usr/bin/chromium",
+    "chromium_path":         "/usr/bin/chromium",
     "remote_debugging_port": 9222,
-    "timeout": 30000,
-    "headless": true,
-    "disable_gpu": true,
-    "no_sandbox": false,
-    "window_width": 1280,
-    "window_height": 800,
-    "verbose": false,
-    "log_file": ""
+    "timeout":               30000,
+    "headless":              true,
+    "stealth":               true,
+    "disable_gpu":           true,
+    "no_sandbox":            false,
+    "window_width":          1280,
+    "window_height":         800,
+    "verbose":               false,
+    "log_file":              "",
+    "plugin_dir":            "",
+    "user_data_dir":         ""
 }
 ```
 
 ### Environment Variables
 
-| Variable            | Description                     |
-|---------------------|---------------------------------|
-| `XBROWSER_CHROMIUM` | Path to Chromium binary         |
-| `XBROWSER_PORT`     | Remote debugging port           |
-| `XBROWSER_TIMEOUT`  | Default timeout in ms           |
-| `XBROWSER_VERBOSE`  | Enable verbose logging          |
-| `XBROWSER_LOG_FILE` | Path to log file                |
-
----
-
-## Terminal Renderer
-
-HTML elements are mapped to terminal text:
-
-| HTML Element | Terminal Output           |
-|--------------|---------------------------|
-| `<h1>`       | `# HEADING`               |
-| `<h2>`       | `## HEADING`              |
-| `<h3>`       | `### HEADING`             |
-| `<a>`        | `[Link Text](url)`        |
-| `<button>`   | `[ Button ]`              |
-| `<input>`    | `[__placeholder______]`   |
-| `<textarea>` | Bordered multi-line box   |
-| `<ul>/<li>`  | `• Bullet item`           |
-| `<ol>/<li>`  | `1. Numbered item`        |
-| `<table>`    | ASCII bordered table      |
-| `<img>`      | `[IMAGE: alt text]`       |
-| `<hr>`       | `────────────────────`    |
-| `<pre>`      | Bordered code block       |
-| `<blockquote>` | `▌ Quoted text`         |
-| `<strong>`   | Bold text (ANSI)          |
-| `<code>`     | `` `inline code` ``       |
-
----
-
-## Running Tests
-
-```bash
-# Run all tests
-composer test
-
-# Run with verbose output
-./vendor/bin/phpunit --testdox
-
-# Run specific suite
-./vendor/bin/phpunit --testsuite Unit
-
-# Generate HTML coverage report
-composer test:coverage
-```
-
----
-
-## Project Structure
-
-```
-Xbrowser/
-├── bin/
-│   └── Xbrowser              ← CLI entry point
-├── src/
-│   ├── Browser/
-│   │   ├── Browser.php        ← Core browser controller
-│   │   ├── BrowserFactory.php ← DI factory
-│   │   └── Page.php           ← Page automation API
-│   ├── CDP/
-│   │   ├── Client.php         ← CDP message client
-│   │   ├── Protocol.php       ← CDP command builders
-│   │   └── WebSocketClient.php← Pure PHP WebSocket (RFC 6455)
-│   ├── DOM/
-│   │   ├── DOMManager.php     ← DOM queries via CDP
-│   │   └── Element.php        ← DOM element wrapper
-│   ├── Renderer/
-│   │   ├── HtmlParser.php     ← Pure PHP HTML parser
-│   │   └── TerminalRenderer.php← HTML → terminal text
-│   ├── Commands/
-│   │   ├── Application.php    ← CLI router
-│   │   ├── OpenCommand.php
-│   │   ├── ShellCommand.php   ← Interactive shell
-│   │   ├── RecordCommand.php  ← Action recorder
-│   │   └── ...
-│   ├── Networking/
-│   │   ├── NetworkInspector.php
-│   │   ├── NetworkRequest.php
-│   │   └── NetworkResponse.php
-│   ├── Events/
-│   │   ├── EventDispatcher.php
-│   │   ├── PageLoadedEvent.php
-│   │   └── ...
-│   ├── Exceptions/
-│   │   ├── TimeoutException.php
-│   │   ├── SelectorNotFoundException.php
-│   │   └── ...
-│   ├── Plugin/
-│   │   ├── PluginInterface.php
-│   │   └── PluginManager.php
-│   └── Utils/
-│       ├── Logger.php
-│       ├── SessionManager.php
-│       ├── ConfigManager.php
-│       └── UrlValidator.php
-├── tests/
-│   ├── Unit/
-│   │   ├── CDP/
-│   │   ├── DOM/
-│   │   ├── Events/
-│   │   ├── Exceptions/
-│   │   ├── Networking/
-│   │   ├── Plugin/
-│   │   ├── Renderer/
-│   │   └── Utils/
-│   └── Integration/
-├── plugins/
-│   └── example/
-│       └── plugin.php
-├── examples/
-│   ├── basic_automation.php
-│   ├── github_login.php
-│   └── scraping.php
-├── composer.json
-├── phpunit.xml
-└── README.md
-```
-
----
-
-## Troubleshooting
-
-### Chromium not found
-
-Set the path explicitly:
-
-```bash
-export XBROWSER_CHROMIUM=/usr/bin/chromium-browser
-# or in ~/.xbrowser/config.json:
-{ "chromium_path": "/usr/bin/chromium" }
-```
-
-### Sandbox errors on Linux
-
-If you see `No usable sandbox!`:
-
-```json
-{ "no_sandbox": true }
-```
-
-Or in config: `XBROWSER_NOSANDBOX=1`
-
-### Timeout errors
-
-Increase the global timeout:
-
-```bash
-export XBROWSER_TIMEOUT=60000
-```
-
-### Connection refused (port 9222)
-
-Another Chromium instance may be using port 9222. Change the port:
-
-```json
-{ "remote_debugging_port": 9333 }
-```
-
-### Page renders blank
-
-Some SPAs need extra time for JavaScript to execute. The browser already waits for `document.readyState === 'complete'`, but you can also use:
-
-```php
-$page->waitForSelector('.my-app-root');
-```
+| Variable | Default | Keterangan |
+|----------|---------|-----------|
+| `XBROWSER_CHROMIUM` | auto-detect | Path ke binary Chromium |
+| `XBROWSER_PORT` | `9222` | Port remote debugging |
+| `XBROWSER_TIMEOUT` | `30000` | Timeout default (ms) |
+| `XBROWSER_HEADLESS` | `true` | Mode headless |
+| `XBROWSER_STEALTH` | `true` | Aktifkan stealth mode |
+| `XBROWSER_NO_SANDBOX` | `false` | Nonaktifkan sandbox (wajib `true` di Docker/CI) |
+| `XBROWSER_VERBOSE` | `false` | Aktifkan log debug |
+| `XBROWSER_LOG_FILE` | `""` | Path file log |
+| `XBROWSER_PLUGIN_DIR` | `""` | Direktori plugin kustom |
 
 ---
 
 ## Docker
 
-Xbrowser tersedia sebagai Docker image — bundled dengan PHP 8.4 + Chromium, tanpa perlu install apapun di host.
+Xbrowser tersedia sebagai Docker image — PHP 8.4 + Chromium sudah tersedia di dalam container.
 
 ### Build image
 
@@ -737,7 +936,7 @@ Xbrowser tersedia sebagai Docker image — bundled dengan PHP 8.4 + Chromium, ta
 docker build -t xbrowser:latest .
 ```
 
-### Jalankan interactive shell
+### Interactive shell
 
 ```bash
 docker run -it --rm \
@@ -756,7 +955,7 @@ docker run --rm \
   --security-opt seccomp=unconfined \
   -v "$(pwd)/examples:/app/examples" \
   -v "$(pwd)/output:/app/output" \
-  xbrowser:latest php examples/basic_automation.php
+  xbrowser:latest php examples/scraping.php
 ```
 
 ### Gunakan docker compose
@@ -774,28 +973,259 @@ docker compose build
 
 ### Environment variables di Docker
 
-| Variable | Default | Deskripsi |
+| Variable | Default | Keterangan |
 |----------|---------|-----------|
-| `XBROWSER_CHROMIUM` | `/usr/bin/chromium` | Path ke binary Chromium |
-| `XBROWSER_NO_SANDBOX` | `true` | Wajib `true` di container (root/non-dri) |
+| `XBROWSER_CHROMIUM` | `/usr/bin/chromium` | Path Chromium di dalam container |
+| `XBROWSER_NO_SANDBOX` | `true` | Wajib `true` di container |
 | `XBROWSER_HEADLESS` | `true` | Mode headless |
 | `XBROWSER_TIMEOUT` | `30000` | Timeout default (ms) |
 | `XBROWSER_VERBOSE` | `false` | Aktifkan log debug |
 
-> **Catatan `/dev/shm`:** Chromium menggunakan shared memory untuk rendering. Tanpa `--shm-size=256m` atau lebih, Chromium bisa crash saat render halaman berat.
+> **Penting:** Chromium butuh shared memory yang cukup. Selalu gunakan `--shm-size=256m` atau lebih, atau Chromium bisa crash saat render halaman berat.
 
 ---
 
-## Architecture Decisions
+## Terminal Renderer
 
-- **Pure PHP WebSocket** — RFC 6455 implementation with no external dependencies. Frame encoding/decoding and the handshake are all custom.
-- **CDP over WebSocket** — All browser control uses the Chrome DevTools Protocol, making Chromium the JS engine. No custom JS engine.
-- **HTML Parser** — A hand-rolled recursive descent parser handles real-world HTML well enough for terminal rendering without requiring `ext-dom` or `libxml`.
-- **SOLID OOP** — Each class has a single responsibility. `Browser` manages process lifecycle, `Page` exposes the automation API, `DOMManager` handles selectors, `TerminalRenderer` handles output.
-- **Event-driven** — An `EventDispatcher` with `on()`, `once()`, `off()` lets plugins and user code react to browser lifecycle events.
+HTML dikonversi ke representasi teks terminal:
+
+| Elemen HTML | Output Terminal |
+|-------------|----------------|
+| `<h1>` | `# JUDUL` |
+| `<h2>` | `## JUDUL` |
+| `<h3>` | `### JUDUL` |
+| `<a>` | `[Teks Link](url)` |
+| `<button>` | `[ Tombol ]` |
+| `<input>` | `[__placeholder______]` |
+| `<textarea>` | Kotak multi-baris |
+| `<ul>/<li>` | `• Butir` |
+| `<ol>/<li>` | `1. Butir bernomor` |
+| `<table>` | Tabel ASCII bertepi |
+| `<img>` | `[IMAGE: alt text]` |
+| `<hr>` | `────────────────────` |
+| `<pre>` | Blok kode bertepi |
+| `<blockquote>` | `▌ Teks kutipan` |
+| `<strong>` | Teks tebal (ANSI bold) |
+| `<code>` | `` `kode inline` `` |
 
 ---
 
-## License
+## Struktur Project
 
-MIT — free for personal and commercial use. Contributions welcome.
+```
+xbrowser/
+├── bin/
+│   └── Xbrowser                   ← Entrypoint CLI
+├── src/
+│   ├── Browser/
+│   │   ├── Browser.php            ← Kelola proses Chromium & halaman
+│   │   ├── BrowserFactory.php     ← Factory dengan DI otomatis
+│   │   ├── Page.php               ← API utama otomasi halaman
+│   │   ├── BotDetectionResult.php ← Hasil cek bot detection
+│   │   └── StealthMode.php        ← Injeksi patch anti-deteksi
+│   ├── CDP/
+│   │   ├── Client.php             ← CDP message client & event dispatcher
+│   │   ├── Protocol.php           ← Builder perintah CDP
+│   │   └── WebSocketClient.php    ← Pure PHP WebSocket RFC 6455
+│   ├── DOM/
+│   │   ├── DOMManager.php         ← Query DOM via CDP
+│   │   └── Element.php            ← Wrapper elemen DOM
+│   ├── Renderer/
+│   │   ├── HtmlParser.php         ← Parser HTML pure PHP
+│   │   └── TerminalRenderer.php   ← Konversi HTML → teks terminal
+│   ├── Commands/
+│   │   ├── Application.php        ← CLI router
+│   │   ├── OpenCommand.php
+│   │   ├── ClickCommand.php
+│   │   ├── TypeCommand.php
+│   │   ├── EvalCommand.php
+│   │   ├── ScreenshotCommand.php
+│   │   ├── HtmlCommand.php
+│   │   ├── NetworkCommand.php
+│   │   ├── SessionCommand.php
+│   │   ├── RecordCommand.php
+│   │   ├── CaptureCommand.php
+│   │   └── ShellCommand.php       ← Interactive shell
+│   ├── Networking/
+│   │   ├── NetworkCapture.php     ← Rekam traffic (pasif)
+│   │   ├── NetworkInspector.php   ← Inspeksi ringan
+│   │   ├── RequestInterceptor.php ← Intercept & modifikasi request (aktif)
+│   │   ├── InterceptedRequest.php ← Object request yang di-intercept
+│   │   ├── CapturedEntry.php      ← Data satu request+response
+│   │   ├── NetworkRequest.php
+│   │   └── NetworkResponse.php
+│   ├── Events/
+│   │   ├── EventDispatcher.php
+│   │   ├── EventInterface.php
+│   │   ├── AbstractEvent.php
+│   │   ├── PageLoadedEvent.php
+│   │   ├── NavigationEvent.php
+│   │   ├── ClickEvent.php
+│   │   ├── DomUpdatedEvent.php
+│   │   ├── JavaScriptExecutedEvent.php
+│   │   └── NetworkRequestEvent.php
+│   ├── Exceptions/
+│   │   ├── XbrowserException.php
+│   │   ├── BrowserCrashException.php
+│   │   ├── BrowserDisconnectException.php
+│   │   ├── TimeoutException.php
+│   │   ├── SelectorNotFoundException.php
+│   │   ├── JavaScriptException.php
+│   │   ├── InvalidUrlException.php
+│   │   └── PluginException.php
+│   ├── Plugin/
+│   │   ├── PluginInterface.php
+│   │   └── PluginManager.php
+│   └── Utils/
+│       ├── ConfigManager.php      ← Konfigurasi + env var
+│       ├── Logger.php
+│       ├── SessionManager.php
+│       └── UrlValidator.php
+├── tests/
+│   ├── Unit/
+│   │   ├── CDP/
+│   │   ├── DOM/
+│   │   ├── Events/
+│   │   ├── Exceptions/
+│   │   ├── Networking/
+│   │   ├── Plugin/
+│   │   ├── Renderer/
+│   │   └── Utils/
+│   └── Integration/
+├── plugins/
+│   └── example/
+│       └── plugin.php
+├── examples/
+│   ├── basic_automation.php
+│   ├── scraping.php
+│   ├── intercept_capture.php
+│   ├── request_intercept.php
+│   └── facebook_login.php
+├── Dockerfile
+├── docker-compose.yml
+├── .dockerignore
+├── composer.json
+├── phpunit.xml
+└── README.md
+```
+
+---
+
+## Menjalankan Tests
+
+```bash
+# Jalankan semua tests
+composer test
+
+# Output verbose
+./vendor/bin/phpunit --testdox
+
+# Jalankan suite tertentu
+./vendor/bin/phpunit --testsuite Unit
+./vendor/bin/phpunit --testsuite Integration
+
+# Laporan coverage HTML
+composer test:coverage
+# Buka: coverage/index.html
+```
+
+---
+
+## Troubleshooting
+
+### Chromium tidak ditemukan
+
+```bash
+# Set path via environment variable
+export XBROWSER_CHROMIUM=/usr/bin/chromium-browser
+
+# Atau via config file ~/.xbrowser/config.json
+{ "chromium_path": "/usr/bin/chromium" }
+```
+
+Xbrowser secara otomatis mencari Chromium di path umum: `/usr/bin/chromium`, `/usr/bin/google-chrome`, Snap, Flatpak, NixOS, Termux, macOS, dan WSL.
+
+---
+
+### Error sandbox di Linux
+
+Jika muncul `No usable sandbox!`:
+
+```bash
+# Via env var
+export XBROWSER_NO_SANDBOX=true
+
+# Atau via config file
+{ "no_sandbox": true }
+```
+
+> Sandbox error umum terjadi di container Docker, CI/CD (GitHub Actions, GitLab CI), atau sistem tanpa kernel namespace support.
+
+---
+
+### Timeout
+
+```bash
+# Naikkan timeout global (dalam milidetik)
+export XBROWSER_TIMEOUT=60000
+
+# Atau per-operasi di kode
+$page->goto('https://lambat.com', timeoutMs: 60000);
+$page->waitForSelector('.konten', timeoutMs: 15000);
+```
+
+---
+
+### Connection refused (port 9222)
+
+Instance Chromium lain mungkin sudah memakai port 9222.
+
+```json
+{ "remote_debugging_port": 9333 }
+```
+
+Atau via env: `export XBROWSER_PORT=9333`
+
+---
+
+### Halaman render kosong / SPA tidak muncul
+
+SPA (Single Page Application) membutuhkan waktu ekstra untuk JavaScript selesai. Gunakan:
+
+```php
+// Tunggu elemen spesifik yang muncul setelah JS selesai
+$page->waitForSelector('#app-root');
+$page->waitForSelector('.data-loaded');
+```
+
+---
+
+### Memory tinggi / Chromium crash
+
+Untuk halaman berat, naikkan alokasi shared memory:
+
+```bash
+# Docker
+docker run --shm-size=512m ...
+
+# docker-compose.yml
+shm_size: 512m
+```
+
+---
+
+## Arsitektur
+
+- **Pure PHP WebSocket** — Implementasi RFC 6455 tanpa dependensi eksternal. Semua frame encoding/masking dan handshake dilakukan custom.
+- **CDP via WebSocket** — Semua kontrol browser menggunakan Chrome DevTools Protocol, menjadikan Chromium sebagai mesin JS. Tidak ada JS engine custom.
+- **HTML Parser** — Parser recursive descent hand-rolled untuk rendering terminal tanpa membutuhkan `ext-dom` atau `libxml`.
+- **Fetch Domain untuk Interception** — Request interception menggunakan CDP Fetch domain (bukan Network domain), memungkinkan modifikasi aktif sebelum request dikirim.
+- **SOLID OOP** — Setiap class punya tanggung jawab tunggal: `Browser` kelola lifecycle proses, `Page` ekspos API otomasi, `DOMManager` tangani selectors, `TerminalRenderer` tangani output.
+- **Event-driven** — `EventDispatcher` dengan `on()`, `once()`, `off()` memungkinkan plugin dan kode user bereaksi terhadap event browser.
+- **Zero mandatory dependencies** — Semua fitur inti berjalan dengan PHP built-in saja. Tidak ada library pihak ketiga yang diwajibkan.
+
+---
+
+## Lisensi
+
+MIT — bebas digunakan untuk keperluan personal maupun komersial. Kontribusi sangat disambut.
