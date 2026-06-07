@@ -330,15 +330,21 @@ class Browser
             }
 
             // ── 3. Poll debug HTTP endpoint ───────────────────────────────────
-            $url  = "http://localhost:{$port}/json/version";
-            $ctx  = stream_context_create(['http' => ['timeout' => 1]]);
-            $body = @file_get_contents($url, false, $ctx);
-
-            if ($body !== false) {
-                $data = json_decode($body, true);
-                if (is_array($data) && isset($data['Browser'])) {
-                    $this->logger->debug("Chromium ready: " . ($data['Browser'] ?? ''));
-                    return;
+            // Coba kedua alamat: IPv4 (127.0.0.1) dan IPv6 ([::1]).
+            // Di Termux/Android, Chromium sering bind ke [::1] sementara
+            // resolusi "localhost" mengarah ke 127.0.0.1 → polling gagal
+            // meski Chromium sudah berjalan.
+            $ctx   = stream_context_create(['http' => ['timeout' => 1]]);
+            $hosts = ["127.0.0.1", "[::1]"];
+            foreach ($hosts as $host) {
+                $url  = "http://{$host}:{$port}/json/version";
+                $body = @file_get_contents($url, false, $ctx);
+                if ($body !== false) {
+                    $data = json_decode($body, true);
+                    if (is_array($data) && isset($data['Browser'])) {
+                        $this->logger->debug("Chromium ready ({$host}): " . ($data['Browser'] ?? ''));
+                        return;
+                    }
                 }
             }
 
@@ -388,6 +394,8 @@ class Browser
         // ── Termux / Android ──────────────────────────────────────────────────
         // /dev/shm tidak tersedia di Android → Chromium crash saat startup.
         // --no-zygote diperlukan karena proses zygote sering gagal di Termux.
+        // --log-level=3 menekan ratusan error dbus/inotify yang normal di Android
+        //   (dbus tidak ada di Android, error-nya harmless tapi memenuhi log).
         // Flag ini aman di platform lain (diabaikan atau tidak berpengaruh).
         if ($this->isTermux()) {
             if (!in_array('--disable-dev-shm-usage', $args, true)) {
@@ -396,7 +404,11 @@ class Browser
             if (!in_array('--no-zygote', $args, true)) {
                 $args[] = '--no-zygote';
             }
-            $this->logger->debug("Termux detected: added --disable-dev-shm-usage --no-zygote");
+            // Hanya tampilkan error fatal; sembunyikan dbus/inotify noise
+            if (!in_array('--log-level=3', $args, true)) {
+                $args[] = '--log-level=3';
+            }
+            $this->logger->debug("Termux detected: added --disable-dev-shm-usage --no-zygote --log-level=3");
         }
 
         // Allow explicit override via option or config (non-Termux juga bisa pakai ini)
