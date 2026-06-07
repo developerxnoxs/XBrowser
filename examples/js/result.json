@@ -1,0 +1,85 @@
+{
+  "timestamp": "2026-06-07T01:10:23.395Z",
+  "email": "083807650503",
+  "verdict": "caa_error:1348131",
+  "status": 200,
+  "c_user": null,
+  "xs": null,
+  "fb_dtsg": null,
+  "cookies": {
+    "datr": "_MQkauGkVffZ6iLv52Df_F2b",
+    "fr": "01C2JqFMbsgvy6ahd..BqJMT8..AAA.0.0.BqJMT8.AWf_BXWUV6Nkk9DyvVt-Myma9g0",
+    "ps_l": "1",
+    "ps_n": "1",
+    "sb": "_MQkauNx6nvVs5uMF1IvjwSo"
+  },
+  "tokens": {
+    "lsd": "AdSNgcBUUJfxanh1k2Fz_56oVL4",
+    "jazoest": "22296",
+    "rev": "1040986233",
+    "hs": "20611.HYP:comet_loggedout_pkg.2.1...0",
+    "hsi": "7648454655736124408",
+    "sessionId": "cdkitf:y27lrh:cnmbp8",
+    "spinR": "1040986233",
+    "spinT": "1780794620",
+    "spinB": "trunk",
+    "keyId": "104"
+  },
+  "responsePreview": "{\"data\":{\"caa_login_web\":{\"error_code\":1348131,\"error_message\":{\"text\":\"The login information you entered is incorrect. Find your account and log in.\",\"inline_style_ranges\":[],\"image_ranges\":[],\"ranges\":[{\"entity_is_weak_reference\":false,\"length\":29,\"offset\":48,\"entity\":{\"__typename\":\"ExternalUrl\",\"url\":\"https://facebook.com/login/identify/\",\"__isNode\":\"ExternalUrl\",\"id\":\"NjQyMTgzOTU5MjA4MTA3Omh0dHBzXGEvL2ZhY2Vib29rLmNvbS9sb2dpbi9pZGVudGlmeS86Ojo6Ojo=\"}}],\"color_ranges\":[]},\"error_style\":\"GENERIC_BANNER\",\"redirect_uri\":null,\"two_factor_result\":null,\"reg_nta_context\":null,\"is_3pl\":null,\"is_xapp_login\":true,\"recaptcha_needed\":false,\"is_ig_login_recaptcha\":false,\"should_show_profile_selector\":false,\"should_show_save_password_dialog\":false,\"captcha_persist_data\":null,\"crypted_uid\":null,\"ig_nonce_refresh\":null,\"ig_trusted_device_nonce_refresh\":null,\"stop_deletion_payload\":{\"stop_deletion_nonce\":null,\"stop_deletion_date\":null,\"is_feta\":false},\"ig_authenticated\":false,\"ig_login_upsell_ar\":null,\"should_show_google_oauth_after_failure\":false,\"google_oauth_uri\":null}},\"extensions\":{\"server_metadata\":{\"request_start_time_ms\":1780794621620,\"time_at_flush_ms\":1780794623352},\"is_final\":true}}",
+  "parsed": {
+    "data": {
+      "caa_login_web": {
+        "error_code": 1348131,
+        "error_message": {
+          "text": "The login information you entered is incorrect. Find your account and log in.",
+          "inline_style_ranges": [],
+          "image_ranges": [],
+          "ranges": [
+            {
+              "entity_is_weak_reference": false,
+              "length": 29,
+              "offset": 48,
+              "entity": {
+                "__typename": "ExternalUrl",
+                "url": "https://facebook.com/login/identify/",
+                "__isNode": "ExternalUrl",
+                "id": "NjQyMTgzOTU5MjA4MTA3Omh0dHBzXGEvL2ZhY2Vib29rLmNvbS9sb2dpbi9pZGVudGlmeS86Ojo6Ojo="
+              }
+            }
+          ],
+          "color_ranges": []
+        },
+        "error_style": "GENERIC_BANNER",
+        "redirect_uri": null,
+        "two_factor_result": null,
+        "reg_nta_context": null,
+        "is_3pl": null,
+        "is_xapp_login": true,
+        "recaptcha_needed": false,
+        "is_ig_login_recaptcha": false,
+        "should_show_profile_selector": false,
+        "should_show_save_password_dialog": false,
+        "captcha_persist_data": null,
+        "crypted_uid": null,
+        "ig_nonce_refresh": null,
+        "ig_trusted_device_nonce_refresh": null,
+        "stop_deletion_payload": {
+          "stop_deletion_nonce": null,
+          "stop_deletion_date": null,
+          "is_feta": false
+        },
+        "ig_authenticated": false,
+        "ig_login_upsell_ar": null,
+        "should_show_google_oauth_after_failure": false,
+        "google_oauth_uri": null
+      }
+    },
+    "extensions": {
+      "server_metadata": {
+        "request_start_time_ms": 1780794621620,
+        "time_at_flush_ms": 1780794623352
+      },
+      "is_final": true
+    }
+  }
+}
